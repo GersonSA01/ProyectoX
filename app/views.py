@@ -701,11 +701,11 @@ IMPORTANTE - EXTRACCIÓN DE TEMAS/SUBTEMAS:
 - Los temas/subtemas deben ser específicos de la unidad correspondiente
 
 ESTRUCTURA DE CADA PREGUNTA (formato específico)
-- **Narración del caso (2–4 líneas):** escenario realista y corto (laboratorio, aula, empresa, servicio público, clínica, etc.) que conecte con un **tema/subtema** de la unidad.
-- **Pregunta directa (1 línea):** compara, identifica o aplica un concepto clave del **tema/subtema**.
+- **Narración del caso (3–5 líneas):** escenario realista y corto (laboratorio, aula, empresa, servicio público, clínica, etc.) que conecte con un **tema/subtema** de la unidad.
+- **Pregunta directa (2 líneas):** compara, identifica o aplica un concepto clave del **tema/subtema**.
 - **Opciones (A–D):** cuatro opciones, **solo una correcta**. Distractores plausibles, sin trucos rebuscados.
 - **Respuesta correcta:** letra de la opción correcta.
-- **Explicación (1–2 líneas):** razón breve de por qué es correcta y por qué las otras no.
+- **Explicación (2-3 líneas):** razón breve de por qué es correcta y por qué las otras no.
 - **Metadatos por ítem (cortos):**
 - Carrera: {carrera['descripcion'] if carrera else 'No especificada'} · Programa: {asignatura['descripcion']}
 - Asignatura: {asignatura['descripcion']}

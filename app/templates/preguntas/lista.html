@@ -15,6 +15,56 @@
     </div>
 </div>
 
+<!-- Título de unidad seleccionada -->
+<div class="mb-3">
+    {% if request.GET.unidad %}
+        {% for pregunta in preguntas %}
+            {% if forloop.first %}
+                <h4 class="text-primary">
+                    <i class="fas fa-list-ol me-2"></i>
+                    Unidad {{ pregunta.unidad.numero_unidad }}: {{ pregunta.unidad.descripcion }}
+                </h4>
+                <p class="text-muted mb-0">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Mostrando preguntas de esta unidad específica
+                </p>
+            {% endif %}
+        {% empty %}
+            <h4 class="text-muted">
+                <i class="fas fa-list-ol me-2"></i>
+                Unidad no encontrada
+            </h4>
+        {% endfor %}
+    {% elif request.GET.programa_analitico %}
+        <h4 class="text-primary">
+            <i class="fas fa-book me-2"></i>
+            Todas las unidades del programa analítico
+        </h4>
+        <p class="text-muted mb-0">
+            <i class="fas fa-info-circle me-1"></i>
+            Mostrando preguntas de todas las unidades del programa seleccionado
+        </p>
+    {% elif request.GET.partida %}
+        <h4 class="text-primary">
+            <i class="fas fa-folder me-2"></i>
+            Todas las unidades de la partida
+        </h4>
+        <p class="text-muted mb-0">
+            <i class="fas fa-info-circle me-1"></i>
+            Mostrando preguntas de todas las unidades de la partida seleccionada
+        </p>
+    {% else %}
+        <h4 class="text-muted">
+            <i class="fas fa-filter me-2"></i>
+            Seleccione una partida para ver las preguntas
+        </h4>
+        <p class="text-muted mb-0">
+            <i class="fas fa-info-circle me-1"></i>
+            Use los filtros de arriba para comenzar a explorar las preguntas
+        </p>
+    {% endif %}
+</div>
+
 <!-- Filtros -->
 <div class="card mb-4">
     <div class="card-body">
