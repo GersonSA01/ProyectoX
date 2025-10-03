@@ -1,0 +1,107 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static admin_modify %}
+
+{% block title %}Generar Preguntas - {{ unidad }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+&rsaquo; <a href="{% url 'admin:app_unidad_changelist' %}">Unidades</a>
+&rsaquo; <a href="{% url 'admin:app_unidad_change' unidad.pk %}">{{ unidad }}</a>
+&rsaquo; Generar Preguntas
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="module aligned">
+    <h2>Generar Preguntas para {{ unidad }}</h2>
+    
+    <div class="form-row">
+        <div class="field-box">
+            <h3>Información de la Unidad</h3>
+            <p><strong>Unidad:</strong> {{ unidad.numero_unidad }} - {{ unidad.descripcion }}</p>
+            <p><strong>Programa:</strong> {{ unidad.programa_analitico.titulo }}</p>
+            <p><strong>Asignatura:</strong> {{ unidad.programa_analitico.asignatura.descripcion }}</p>
+            <p><strong>Preguntas a generar:</strong> {{ unidad.num_preguntas }}</p>
+            <p><strong>Preguntas existentes:</strong> {{ preguntas_existentes }}</p>
+        </div>
+    </div>
+
+    {% if templates %}
+    <form method="post" action="{% url 'generar_preguntas' unidad.pk %}">
+        {% csrf_token %}
+        
+        <div class="form-row">
+            <div class="field-box">
+                <h3>Seleccionar Template</h3>
+                <select name="template_id" required style="width: 100%; padding: 8px;">
+                    <option value="">-- Selecciona un template --</option>
+                    {% for template in templates %}
+                    <option value="{{ template.pk }}">{{ template.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="field-box">
+                <h3>Opciones de Generación</h3>
+                <label>
+                    <input type="checkbox" name="reemplazar" value="on">
+                    Reemplazar preguntas existentes ({{ preguntas_existentes }})
+                </label>
+                <p class="help">Si no está marcado, las nuevas preguntas se agregarán a las existentes.</p>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="field-box">
+                <h3>Preview de Templates</h3>
+                {% for template in templates %}
+                <div class="template-preview" style="border: 1px solid #ddd; padding: 10px; margin: 10px 0;">
+                    <h4>{{ template.nombre }}</h4>
+                    <p><strong>Enunciado:</strong> {{ template.enunciado_template|truncatechars:100 }}</p>
+                    <p><strong>Opciones:</strong> {{ template.num_opciones }}</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="submit-row">
+            <input type="submit" value="Generar {{ unidad.num_preguntas }} Preguntas" class="default" 
+                   onclick="return confirm('¿Estás seguro de generar {{ unidad.num_preguntas }} preguntas?');">
+            <a href="{% url 'admin:app_unidad_change' unidad.pk %}" class="button">Cancelar</a>
+        </div>
+    </form>
+    {% else %}
+    <div class="form-row">
+        <div class="field-box">
+            <h3>No hay templates disponibles</h3>
+            <p>Primero debes crear templates de preguntas.</p>
+            <a href="{% url 'admin:app_templatepregunta_add' %}" class="button">Crear Template</a>
+            <a href="{% url 'crear_templates_ejemplo' %}" class="button">Crear Templates de Ejemplo</a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.template-preview {
+    background-color: #f9f9f9;
+    border-radius: 4px;
+}
+.template-preview h4 {
+    margin-top: 0;
+    color: #417690;
+}
+.field-box {
+    margin-bottom: 20px;
+}
+.field-box h3 {
+    margin-bottom: 10px;
+    color: #333;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+}
+</style>
+{% endblock %}

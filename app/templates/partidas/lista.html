@@ -1,0 +1,819 @@
+{% extends 'base.html' %}
+
+{% block title %}Partidas - Sistema de Preguntas{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-folder me-2"></i>Partidas</h1>
+    <div>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#crearPartidaModal">
+            <i class="fas fa-plus me-2"></i>Crear Partida
+        </button>
+    </div>
+</div>
+
+<!-- Lista de Partidas -->
+<div class="card">
+    <div class="card-body">
+        {% if partidas %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Partida</th>
+                            <th>Asignatura</th>
+                            <th>Unidades</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for partida in partidas %}
+                        <tr>
+                            <td>
+                                <div class="editable-partida" data-partida-id="{{ partida.partida_id }}">
+                                    <div class="d-flex align-items-center">
+                                        <span class="partida-text flex-grow-1">{{ partida.descripcion }}</span>
+                                        <button type="button" class="btn btn-sm btn-outline-primary edit-btn ms-2" title="Editar nombre">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                    </div>
+                                    <div class="edit-mode d-none">
+                                        <div class="d-flex align-items-center">
+                                            <input type="text" class="form-control form-control-sm partida-input flex-grow-1" 
+                                                   value="{{ partida.descripcion }}" maxlength="200">
+                                            <button type="button" class="btn btn-sm btn-success save-btn ms-2" title="Guardar">
+                                                <i class="fas fa-save"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary cancel-btn ms-1" title="Cancelar">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary">{{ partida.asignatura.descripcion|default:"Sin asignatura" }}</span>
+                                <br>
+                                {% if partida.asignatura.carrera %}
+                                    <small class="text-muted">{{ partida.asignatura.carrera.descripcion }}</small>
+                                {% else %}
+                                    <small class="text-muted text-warning">Sin carrera asignada</small>
+                                    {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-info">{{ partida.unidades_count|default:0 }} unidades</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginación -->
+            {% if is_paginated %}
+            <nav aria-label="Paginación">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1">Primera</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+                        </li>
+                    {% endif %}
+
+                    <li class="page-item active">
+                        <span class="page-link">
+                            Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                        </span>
+                    </li>
+
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">Siguiente</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Última</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-folder text-muted" style="font-size: 4rem;"></i>
+                <h4 class="mt-3 text-muted">No hay partidas disponibles</h4>
+                <p class="text-muted">Crea tu primera partida para comenzar.</p>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#crearPartidaModal">
+                    <i class="fas fa-plus me-2"></i>Crear Primera Partida
+                </button>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+
+<!-- Modal para crear partida -->
+<div class="modal fade" id="crearPartidaModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Crear Nueva Partida</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'crear_partida_completa' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="descripcion" class="form-label">Nombre de la Partida</label>
+                        <input type="text" class="form-control" id="descripcion" name="descripcion" 
+                               placeholder="Ej: Matemáticas Básicas" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="asignatura" class="form-label">Asignatura</label>
+                        <div class="input-group">
+                            <select class="form-select" id="asignatura" name="asignatura" required>
+                                <option value="">Seleccione una asignatura</option>
+                                {% for asignatura in asignaturas %}
+                                <option value="{{ asignatura.asignatura_id }}">{{ asignatura.descripcion }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="btn btn-outline-secondary" onclick="abrirModalAsignatura()">
+                                <i class="fas fa-plus"></i> Más
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    <h6 class="text-primary mb-3">
+                        <i class="fas fa-cogs me-2"></i>Configuración del Programa Analítico
+                    </h6>
+                    
+                    <div class="mb-3">
+                        <label for="titulo_programa" class="form-label">Título del Programa Analítico</label>
+                        <input type="text" class="form-control" id="titulo_programa" name="titulo_programa" 
+                               placeholder="Ej: Programa Analítico de Matemáticas" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="contexto" class="form-label">Contexto del Programa</label>
+                            <textarea class="form-control" id="contexto" name="contexto" rows="3" 
+                                  placeholder="Describe el contexto y objetivos del programa..." required></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="num_unidades" class="form-label">Número de Unidades</label>
+                                <input type="number" class="form-control" id="num_unidades" name="num_unidades" 
+                                       min="1" max="20" value="5" required onchange="generarCamposUnidades()">
+                            </div>
+                            </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="preguntas_por_unidad" class="form-label">Preguntas por Unidad</label>
+                                <input type="number" class="form-control" id="preguntas_por_unidad" name="preguntas_por_unidad" 
+                                       min="1" max="50" value="10" required>
+                            </div>
+                            </div>
+                        </div>
+                        
+                    <!-- Campos dinámicos para unidades -->
+                    <div id="campos_unidades" class="mt-4" style="display: none;">
+                        <h6 class="text-primary mb-3">
+                            <i class="fas fa-list-ol me-2"></i>Descripciones de las Unidades
+                        </h6>
+                        <div id="unidades_container">
+                            <!-- Los campos se generarán dinámicamente aquí -->
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="cancelBtn">Cancelar</button>
+                    <button type="submit" class="btn btn-success" id="createBtn">
+                        <i class="fas fa-magic me-2"></i>Crear Partida Completa
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para crear asignatura - NUEVO -->
+<div class="modal fade" id="nuevoModalAsignatura" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus-circle me-2"></i>Crear Nueva Asignatura
+                </h5>
+                <button type="button" class="btn-close" onclick="cerrarModalAsignatura()"></button>
+            </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                    <label for="nuevaAsignaturaCarrera" class="form-label">
+                        <i class="fas fa-graduation-cap me-2"></i>Carrera
+                    </label>
+                    <div class="input-group">
+                        <select class="form-select" id="nuevaAsignaturaCarrera" required>
+                            <option value="">Seleccione una carrera</option>
+                            {% for carrera in carreras %}
+                            <option value="{{ carrera.pk }}">{{ carrera.descripcion }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="button" class="btn btn-outline-secondary" onclick="abrirModalCarrera()">
+                            <i class="fas fa-plus"></i> Más
+                        </button>
+                    </div>
+                    <div class="form-text">Selecciona la carrera a la que pertenece la asignatura</div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="nuevaAsignaturaNombre" class="form-label">
+                        <i class="fas fa-book me-2"></i>Nombre de la Asignatura
+                    </label>
+                    <input type="text" class="form-control" id="nuevaAsignaturaNombre" 
+                           placeholder="Ej: Matemáticas I" maxlength="100">
+                    <div class="form-text">Ingresa el nombre de la nueva asignatura</div>
+                </div>
+                <div id="mensajeAsignatura" class="alert d-none" role="alert"></div>
+                </div>
+                <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModalAsignatura()">
+                    <i class="fas fa-times me-2"></i>Cancelar
+                </button>
+                <button type="button" class="btn btn-success" onclick="crearAsignaturaNueva()" id="btnCrearAsignatura">
+                    <i class="fas fa-save me-2"></i>Crear Asignatura
+                    </button>
+                </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para crear carrera -->
+<div class="modal fade" id="nuevoModalCarrera" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-graduation-cap me-2"></i>Crear Nueva Carrera
+                </h5>
+                <button type="button" class="btn-close" onclick="cerrarModalCarrera()"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="nuevaCarreraNombre" class="form-label">
+                        <i class="fas fa-graduation-cap me-2"></i>Nombre de la Carrera
+                    </label>
+                    <input type="text" class="form-control" id="nuevaCarreraNombre" 
+                           placeholder="Ej: Ingeniería en Sistemas" maxlength="100">
+                    <div class="form-text">Ingresa el nombre de la nueva carrera</div>
+                </div>
+                <div id="mensajeCarrera" class="alert d-none" role="alert"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModalCarrera()">
+                    <i class="fas fa-times me-2"></i>Cancelar
+                </button>
+                <button type="button" class="btn btn-success" onclick="crearCarreraNueva()" id="btnCrearCarrera">
+                    <i class="fas fa-save me-2"></i>Crear Carrera
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+// NUEVO SCRIPT PARA CREAR ASIGNATURAS Y CARRERAS - DESDE CERO
+window.modalAsignatura = window.modalAsignatura || null;
+window.modalCarrera = window.modalCarrera || null;
+
+// Función para abrir el modal de asignatura
+function abrirModalAsignatura() {
+    if (!window.modalAsignatura) {
+        window.modalAsignatura = new bootstrap.Modal(document.getElementById('nuevoModalAsignatura'));
+    }
+    
+    // Limpiar el formulario
+    document.getElementById('nuevaAsignaturaCarrera').value = '';
+    document.getElementById('nuevaAsignaturaNombre').value = '';
+    document.getElementById('mensajeAsignatura').classList.add('d-none');
+    
+    // Restaurar botón
+    const btnCrear = document.getElementById('btnCrearAsignatura');
+    btnCrear.disabled = false;
+    btnCrear.innerHTML = '<i class="fas fa-save me-2"></i>Crear Asignatura';
+    
+    window.modalAsignatura.show();
+}
+
+// Función para cerrar el modal
+function cerrarModalAsignatura() {
+    if (window.modalAsignatura) {
+        window.modalAsignatura.hide();
+    }
+}
+
+// Función para crear asignatura
+function crearAsignaturaNueva() {
+    const nombreInput = document.getElementById('nuevaAsignaturaNombre');
+    const carreraSelect = document.getElementById('nuevaAsignaturaCarrera');
+    const mensajeDiv = document.getElementById('mensajeAsignatura');
+    const btnCrear = document.getElementById('btnCrearAsignatura');
+    const nombre = nombreInput.value.trim();
+    const carreraId = carreraSelect.value;
+    
+    // Validar carrera
+    if (!carreraId) {
+        mostrarMensajeAsignatura('Por favor selecciona una carrera', 'warning');
+        carreraSelect.focus();
+        return;
+    }
+    
+    // Validar nombre
+    if (!nombre) {
+        mostrarMensajeAsignatura('Por favor ingresa el nombre de la asignatura', 'warning');
+        nombreInput.focus();
+        return;
+    }
+    
+    if (nombre.length < 3) {
+        mostrarMensajeAsignatura('El nombre debe tener al menos 3 caracteres', 'warning');
+        nombreInput.focus();
+                return;
+            }
+            
+    // Deshabilitar botón y mostrar loading
+    btnCrear.disabled = true;
+    btnCrear.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creando...';
+    
+    // Preparar datos
+    const formData = new FormData();
+    formData.append('descripcion', nombre);
+    formData.append('carrera_id', carreraId);
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    // Enviar petición AJAX
+            fetch('/api/crear-asignatura/', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+            // Agregar al select
+            agregarAsignaturaAlSelect(data.asignatura);
+            
+            // Cerrar modal
+            cerrarModalAsignatura();
+                    
+                    // Mostrar mensaje de éxito
+            mostrarMensajeAsignatura('¡Asignatura creada exitosamente!', 'success');
+            
+            // Limpiar inputs
+            nombreInput.value = '';
+            carreraSelect.value = '';
+                } else {
+            mostrarMensajeAsignatura('Error: ' + data.error, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+        mostrarMensajeAsignatura('Error de conexión. Intenta nuevamente.', 'danger');
+    })
+    .finally(() => {
+        // Restaurar botón
+        btnCrear.disabled = false;
+        btnCrear.innerHTML = '<i class="fas fa-save me-2"></i>Crear Asignatura';
+    });
+}
+
+// Función para mostrar mensajes de asignatura
+function mostrarMensajeAsignatura(texto, tipo) {
+    const mensajeDiv = document.getElementById('mensajeAsignatura');
+    mensajeDiv.textContent = texto;
+    mensajeDiv.className = `alert alert-${tipo}`;
+    mensajeDiv.classList.remove('d-none');
+    
+    // Auto-ocultar después de 3 segundos
+    setTimeout(() => {
+        mensajeDiv.classList.add('d-none');
+    }, 3000);
+}
+
+// FUNCIONES PARA CARRERAS
+// Función para abrir el modal de carrera
+function abrirModalCarrera() {
+    if (!window.modalCarrera) {
+        window.modalCarrera = new bootstrap.Modal(document.getElementById('nuevoModalCarrera'));
+    }
+    
+    // Limpiar el formulario
+    document.getElementById('nuevaCarreraNombre').value = '';
+    document.getElementById('mensajeCarrera').classList.add('d-none');
+    
+    // Restaurar botón
+    const btnCrear = document.getElementById('btnCrearCarrera');
+    btnCrear.disabled = false;
+    btnCrear.innerHTML = '<i class="fas fa-save me-2"></i>Crear Carrera';
+    
+    window.modalCarrera.show();
+}
+
+// Función para cerrar el modal de carrera
+function cerrarModalCarrera() {
+    if (window.modalCarrera) {
+        window.modalCarrera.hide();
+    }
+}
+
+// Función para crear carrera
+function crearCarreraNueva() {
+    const nombreInput = document.getElementById('nuevaCarreraNombre');
+    const mensajeDiv = document.getElementById('mensajeCarrera');
+    const btnCrear = document.getElementById('btnCrearCarrera');
+    const nombre = nombreInput.value.trim();
+    
+    // Validar nombre
+    if (!nombre) {
+        mostrarMensajeCarrera('Por favor ingresa el nombre de la carrera', 'warning');
+        nombreInput.focus();
+        return;
+    }
+    
+    if (nombre.length < 3) {
+        mostrarMensajeCarrera('El nombre debe tener al menos 3 caracteres', 'warning');
+        nombreInput.focus();
+        return;
+    }
+    
+    // Deshabilitar botón y mostrar loading
+    btnCrear.disabled = true;
+    btnCrear.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creando...';
+    
+    // Preparar datos
+    const formData = new FormData();
+    formData.append('descripcion', nombre);
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    // Enviar petición AJAX
+    fetch('/api/crear-carrera/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Agregar al select de carreras en el modal de asignatura
+            agregarCarreraAlSelect(data.carrera);
+            
+            // Cerrar modal
+            cerrarModalCarrera();
+            
+            // Mostrar mensaje de éxito
+            mostrarMensajeCarrera('¡Carrera creada exitosamente!', 'success');
+            
+            // Limpiar input
+            nombreInput.value = '';
+        } else {
+            mostrarMensajeCarrera('Error: ' + data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarMensajeCarrera('Error de conexión. Intenta nuevamente.', 'danger');
+    })
+    .finally(() => {
+        // Restaurar botón
+        btnCrear.disabled = false;
+        btnCrear.innerHTML = '<i class="fas fa-save me-2"></i>Crear Carrera';
+    });
+}
+
+// Función para mostrar mensajes de carrera
+function mostrarMensajeCarrera(texto, tipo) {
+    const mensajeDiv = document.getElementById('mensajeCarrera');
+    mensajeDiv.textContent = texto;
+    mensajeDiv.className = `alert alert-${tipo}`;
+    mensajeDiv.classList.remove('d-none');
+    
+    // Auto-ocultar después de 3 segundos
+    setTimeout(() => {
+        mensajeDiv.classList.add('d-none');
+    }, 3000);
+}
+
+// Función para agregar carrera al select
+function agregarCarreraAlSelect(carrera) {
+    const select = document.getElementById('nuevaAsignaturaCarrera');
+    
+    // Crear nueva opción
+    const nuevaOpcion = document.createElement('option');
+    nuevaOpcion.value = carrera.id;
+    nuevaOpcion.textContent = carrera.descripcion;
+    
+    // Agregar al select
+    select.appendChild(nuevaOpcion);
+    
+    // Seleccionar la nueva carrera
+    select.value = carrera.id;
+}
+
+// Función para agregar asignatura al select
+function agregarAsignaturaAlSelect(asignatura) {
+    const select = document.getElementById('asignatura');
+    
+    // Crear nueva opción
+    const nuevaOpcion = document.createElement('option');
+    nuevaOpcion.value = asignatura.id;
+    nuevaOpcion.textContent = asignatura.descripcion;
+    
+    // Agregar al select
+    select.appendChild(nuevaOpcion);
+    
+    // Seleccionar la nueva asignatura
+    select.value = asignatura.id;
+}
+
+// Permitir crear asignatura y carrera con Enter
+document.addEventListener('DOMContentLoaded', function() {
+    const nombreInput = document.getElementById('nuevaAsignaturaNombre');
+    if (nombreInput) {
+        nombreInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                crearAsignaturaNueva();
+            }
+        });
+    }
+    
+    const carreraInput = document.getElementById('nuevaCarreraNombre');
+    if (carreraInput) {
+        carreraInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                crearCarreraNueva();
+            }
+        });
+    }
+});
+
+// FUNCIÓN PARA GENERAR CAMPOS DINÁMICOS DE UNIDADES
+function generarCamposUnidades() {
+    const numUnidades = parseInt(document.getElementById('num_unidades').value) || 0;
+    const container = document.getElementById('unidades_container');
+    
+    // Limpiar contenedor
+    container.innerHTML = '';
+    
+    if (numUnidades > 0) {
+        for (let i = 1; i <= numUnidades; i++) {
+            const unidadDiv = document.createElement('div');
+            unidadDiv.className = 'mb-3';
+            unidadDiv.innerHTML = `
+                <div class="row">
+                    <div class="col-md-2">
+                        <label class="form-label">Unidad ${i}</label>
+                        <input type="number" class="form-control" name="unidad_${i}_numero" 
+                               value="${i}" readonly style="background-color: #f8f9fa;">
+                    </div>
+                    <div class="col-md-10">
+                        <label class="form-label">Descripción</label>
+                        <input type="text" class="form-control" name="unidad_${i}_descripcion" 
+                               placeholder="Ej: Introducción a los conceptos básicos" 
+                               maxlength="200" required>
+                        <div class="form-text">Describe el contenido de esta unidad</div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(unidadDiv);
+        }
+        
+        // Mostrar la sección
+        document.getElementById('campos_unidades').style.display = 'block';
+    } else {
+        // Ocultar la sección si no hay unidades
+        document.getElementById('campos_unidades').style.display = 'none';
+    }
+}
+
+// MANEJO DEL FORMULARIO DE PARTIDA
+document.addEventListener('DOMContentLoaded', function() {
+    // Edición inline de nombre de partida
+    const editablePartidas = document.querySelectorAll('.editable-partida');
+    editablePartidas.forEach(element => {
+        const textSpan = element.querySelector('.partida-text');
+        const inputField = element.querySelector('.partida-input');
+        const editBtn = element.querySelector('.edit-btn');
+        const saveBtn = element.querySelector('.save-btn');
+        const cancelBtn = element.querySelector('.cancel-btn');
+        const editMode = element.querySelector('.edit-mode');
+        const partidaId = element.dataset.partidaId;
+
+        editBtn.addEventListener('click', function() {
+            entrarModoEdicionPartida(element, textSpan, editMode, inputField);
+        });
+        saveBtn.addEventListener('click', function() {
+            guardarPartida(partidaId, inputField.value.trim());
+        });
+        cancelBtn.addEventListener('click', function() {
+            salirModoEdicionPartida(element, textSpan, editMode, inputField);
+        });
+        inputField.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                guardarPartida(partidaId, inputField.value.trim());
+            }
+        });
+        inputField.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                salirModoEdicionPartida(element, textSpan, editMode, inputField);
+            }
+        });
+    });
+
+    function guardarPartida(partidaId, nuevaDescripcion) {
+        const element = document.querySelector(`[data-partida-id="${partidaId}"]`);
+        const textSpan = element.querySelector('.partida-text');
+        const inputField = element.querySelector('.partida-input');
+        const editMode = element.querySelector('.edit-mode');
+        const saveBtn = element.querySelector('.save-btn');
+
+        if (!nuevaDescripcion) {
+            mostrarToastPartidas('El nombre no puede estar vacío', 'warning');
+            salirModoEdicionPartida(element, textSpan, editMode, inputField);
+            return;
+        }
+        if (nuevaDescripcion === textSpan.textContent) {
+            salirModoEdicionPartida(element, textSpan, editMode, inputField);
+            return;
+        }
+
+        inputField.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        saveBtn.disabled = true;
+
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (!csrfToken) {
+            mostrarToastPartidas('Error: Token CSRF no encontrado', 'danger');
+            salirModoEdicionPartida(element, textSpan, editMode, inputField);
+            return;
+        }
+
+        fetch(`/api/partidas/${partidaId}/update/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken.value
+            },
+            body: JSON.stringify({ descripcion: nuevaDescripcion })
+        })
+        .then(response => {
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                textSpan.textContent = data.partida.descripcion;
+                mostrarToastPartidas('Nombre de la partida actualizado', 'success');
+            } else {
+                mostrarToastPartidas('Error: ' + (data.error || 'No se pudo actualizar'), 'danger');
+            }
+            salirModoEdicionPartida(element, textSpan, editMode, inputField);
+        })
+        .catch(err => {
+            console.error(err);
+            mostrarToastPartidas('Error de conexión: ' + err.message, 'danger');
+            salirModoEdicionPartida(element, textSpan, editMode, inputField);
+        });
+    }
+
+    function entrarModoEdicionPartida(element, textSpan, editMode, inputField) {
+        textSpan.parentElement.classList.add('d-none');
+        editMode.classList.remove('d-none');
+        inputField.focus();
+        inputField.select();
+    }
+
+    function salirModoEdicionPartida(element, textSpan, editMode, inputField) {
+        textSpan.parentElement.classList.remove('d-none');
+        editMode.classList.add('d-none');
+        const saveBtn = element.querySelector('.save-btn');
+        saveBtn.innerHTML = '<i class="fas fa-save"></i>';
+        saveBtn.disabled = false;
+        inputField.disabled = false;
+        inputField.value = textSpan.textContent;
+    }
+
+    function mostrarToastPartidas(texto, tipo) {
+        let toast = document.getElementById('toastPartidas');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'toastPartidas';
+            toast.className = 'toast position-fixed top-0 end-0 m-3';
+            toast.style.zIndex = '9999';
+            toast.innerHTML = `
+                <div class="toast-header">
+                    <strong class="me-auto">Sistema</strong>
+                    <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                </div>
+                <div class="toast-body"></div>
+            `;
+            document.body.appendChild(toast);
+        }
+        const toastBody = toast.querySelector('.toast-body');
+        toastBody.textContent = texto;
+        toastBody.className = `toast-body text-${tipo}`;
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+    }
+
+    const crearPartidaForm = document.querySelector('#crearPartidaModal form');
+    const submitBtn = document.getElementById('createBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    
+    // Inicializar campos de unidades cuando se abre el modal
+    const modalPartida = document.getElementById('crearPartidaModal');
+    if (modalPartida) {
+        modalPartida.addEventListener('shown.bs.modal', function() {
+            generarCamposUnidades();
+        });
+    }
+    
+    if (crearPartidaForm && submitBtn) {
+        crearPartidaForm.addEventListener('submit', function(e) {
+            // Validar que todos los campos requeridos estén llenos
+            const descripcion = this.querySelector('[name="descripcion"]')?.value?.trim() || '';
+            const asignatura = this.querySelector('[name="asignatura"]')?.value || '';
+            const titulo_programa = this.querySelector('[name="titulo_programa"]')?.value?.trim() || '';
+            const contexto = this.querySelector('[name="contexto"]')?.value?.trim() || '';
+            const numUnidades = parseInt(this.querySelector('[name="num_unidades"]')?.value) || 0;
+            
+            console.log('Validando campos:', { descripcion, asignatura, titulo_programa, contexto, numUnidades });
+            console.log('Opciones de asignatura disponibles:', this.querySelector('[name="asignatura"]').options.length);
+            
+            if (!descripcion || !asignatura || !titulo_programa || !contexto || numUnidades === 0) {
+                e.preventDefault();
+                alert(`Por favor complete todos los campos obligatorios:\n- Descripción: ${descripcion ? 'OK' : 'FALTA'}\n- Asignatura: ${asignatura ? 'OK' : 'FALTA'}\n- Título: ${titulo_programa ? 'OK' : 'FALTA'}\n- Contexto: ${contexto ? 'OK' : 'FALTA'}\n- Unidades: ${numUnidades > 0 ? 'OK' : 'FALTA'}`);
+                return;
+            }
+            
+            // Validar que todas las unidades tengan descripción
+            let unidadesIncompletas = [];
+            for (let i = 1; i <= numUnidades; i++) {
+                const descripcionUnidad = this.querySelector(`[name="unidad_${i}_descripcion"]`);
+                if (!descripcionUnidad || !descripcionUnidad.value.trim()) {
+                    unidadesIncompletas.push(i);
+                }
+            }
+            
+            if (unidadesIncompletas.length > 0) {
+                e.preventDefault();
+                alert(`Por favor complete las descripciones de las unidades: ${unidadesIncompletas.join(', ')}`);
+                return;
+            }
+            
+            // Deshabilitar ambos botones
+            submitBtn.disabled = true;
+            if (cancelBtn) cancelBtn.disabled = true;
+            
+            // Cambiar el texto y agregar spinner
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creando partida completa...';
+            
+            // Cambiar el color del botón para indicar procesamiento
+            submitBtn.classList.remove('btn-success');
+            submitBtn.classList.add('btn-primary');
+            
+            // Mostrar indicador de progreso
+            const modalBody = document.querySelector('#crearPartidaModal .modal-body');
+            const progressDiv = document.createElement('div');
+            progressDiv.className = 'mt-3';
+            progressDiv.innerHTML = `
+                <div class="alert alert-info">
+                    <div class="d-flex align-items-center">
+                        <div class="spinner-border spinner-border-sm me-3" role="status">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+                        <div>
+                            <strong>Creando partida completa...</strong><br>
+                            <small class="text-muted">Generando programa analítico, unidades y preguntas automáticamente</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="progress" style="height: 6px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
+                         role="progressbar" style="width: 100%"></div>
+                </div>
+            `;
+            modalBody.appendChild(progressDiv);
+        });
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}

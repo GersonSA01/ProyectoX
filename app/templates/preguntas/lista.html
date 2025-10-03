@@ -1,0 +1,826 @@
+{% extends 'base.html' %}
+
+{% block title %}Preguntas - Sistema de Preguntas{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-question-circle me-2"></i>Preguntas</h1>
+    <div>
+        <button type="button" class="btn btn-info me-2" onclick="verPrompt()" id="verPromptBtn">
+            <i class="fas fa-eye me-2"></i>Ver Prompt
+        </button>
+        <button type="button" class="btn btn-success" onclick="descargarGoogleDocs()" id="descargarBtn">
+            <i class="fas fa-download me-2"></i>Descargar Google Docs
+        </button>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3" id="filtrosForm">
+            <div class="col-md-3">
+                <label for="partida" class="form-label">Filtrar por Partida *</label>
+                <select name="partida" id="partida" class="form-select" required>
+                    <option value="">Seleccione una partida</option>
+                    {% for partida in partidas %}
+                    <option value="{{ partida.partida_id }}" {% if request.GET.partida == partida.partida_id|stringformat:"s" %}selected{% endif %}>
+                        {{ partida.descripcion }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="programa_analitico" class="form-label">Filtrar por Plan Analítico *</label>
+                <select name="programa_analitico" id="programa_analitico" class="form-select" disabled required>
+                    <option value="">Primero seleccione una partida</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="unidad" class="form-label">Filtrar por Unidad (Opcional)</label>
+                <select name="unidad" id="unidad" class="form-select" disabled>
+                    <option value="">Primero seleccione un plan analítico</option>
+                </select>
+                <small class="form-text text-muted">Seleccione una unidad para generar prompt personalizado</small>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2" id="filtrarBtn">
+                    <i class="fas fa-filter me-2"></i>Filtrar
+                </button>
+                <a href="{% url 'pregunta_lista' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-times me-2"></i>Limpiar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Lista de Preguntas en Tarjetas -->
+<div class="card">
+    <div class="card-body">
+        {% csrf_token %}
+        {% if preguntas %}
+            <div class="row" id="preguntasContainer">
+                {% for pregunta in preguntas %}
+                <div class="col-12 col-lg-6 mb-4">
+                    <div class="card h-100 pregunta-card" data-pregunta-id="{{ pregunta.pregunta_id }}">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <span class="badge bg-primary me-2">#{{ pregunta.numero }}</span>
+                                <small class="text-muted">{{ pregunta.unidad.descripcion|truncatechars:40 }}</small>
+                            </h6>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="toggleEdit({{ pregunta.pregunta_id }})" title="Editar">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-success btn-sm" onclick="saveQuestion({{ pregunta.pregunta_id }})" title="Guardar" style="display: none;" id="saveBtn{{ pregunta.pregunta_id }}">
+                                    <i class="fas fa-save"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <!-- Enunciado -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">Enunciado:</label>
+                                <div class="pregunta-enunciado p-3 bg-light rounded" id="enunciado{{ pregunta.pregunta_id }}">
+                                    {{ pregunta.enunciado }}
+                                </div>
+                                <textarea class="form-control pregunta-edit mt-2" id="enunciadoEdit{{ pregunta.pregunta_id }}" style="display: none;" rows="4">{{ pregunta.enunciado }}</textarea>
+                            </div>
+                            
+                            <!-- Opciones -->
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Opciones:</label>
+                                <div class="opciones-container" id="opciones{{ pregunta.pregunta_id }}">
+                                    {% for opcion in pregunta.opciones %}
+                                    <div class="opcion-item mb-3 p-3 border rounded {% if opcion.es_correcta %}border-success bg-light{% endif %}" data-opcion-id="{{ opcion.opcion_id }}">
+                                        <div class="d-flex align-items-start">
+                                            <div class="form-check me-3 mt-1">
+                                                <input class="form-check-input" type="radio" name="correcta{{ pregunta.pregunta_id }}" value="{{ opcion.opcion_id }}" {% if opcion.es_correcta %}checked{% endif %} disabled>
+                                            </div>
+                                            <div class="flex-grow-1 opcion-texto">
+                                                <div class="opcion-content">
+                                                    {{ opcion.opcion }}
+                                                </div>
+                                            </div>
+                                            <div class="opcion-actions ms-2" style="display: none;">
+                                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteOption({{ opcion.opcion_id }})" title="Eliminar">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <textarea class="form-control opcion-edit mt-2" style="display: none;" rows="3">{{ opcion.opcion }}</textarea>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="addOption({{ pregunta.pregunta_id }})" style="display: none;" id="addOptionBtn{{ pregunta.pregunta_id }}">
+                                    <i class="fas fa-plus me-1"></i>Agregar Opción
+                                </button>
+                            </div>
+                            
+                            <!-- Información adicional -->
+                            <div class="card-footer bg-transparent">
+                                <small class="text-muted">
+                                    <i class="fas fa-book me-1"></i>{{ pregunta.asignatura.descripcion }}
+                                    <span class="ms-2">
+                                        <i class="fas fa-list-ol me-1"></i>Unidad {{ pregunta.unidad.numero_unidad }}
+                                    </span>
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Paginación -->
+            {% if is_paginated %}
+            <nav aria-label="Paginación">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% if request.GET.partida %}&partida={{ request.GET.partida }}{% endif %}{% if request.GET.programa_analitico %}&programa_analitico={{ request.GET.programa_analitico }}{% endif %}{% if request.GET.unidad %}&unidad={{ request.GET.unidad }}{% endif %}">Primera</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.partida %}&partida={{ request.GET.partida }}{% endif %}{% if request.GET.programa_analitico %}&programa_analitico={{ request.GET.programa_analitico }}{% endif %}{% if request.GET.unidad %}&unidad={{ request.GET.unidad }}{% endif %}">Anterior</a>
+                        </li>
+                    {% endif %}
+
+                    <li class="page-item active">
+                        <span class="page-link">
+                            Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                        </span>
+                    </li>
+
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.partida %}&partida={{ request.GET.partida }}{% endif %}{% if request.GET.programa_analitico %}&programa_analitico={{ request.GET.programa_analitico }}{% endif %}{% if request.GET.unidad %}&unidad={{ request.GET.unidad }}{% endif %}">Siguiente</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.partida %}&partida={{ request.GET.partida }}{% endif %}{% if request.GET.programa_analitico %}&programa_analitico={{ request.GET.programa_analitico }}{% endif %}{% if request.GET.unidad %}&unidad={{ request.GET.unidad }}{% endif %}">Última</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+
+        {% else %}
+            <div class="text-center py-5">
+                {% if not request.GET.partida %}
+                    <i class="fas fa-filter text-muted" style="font-size: 4rem;"></i>
+                    <h4 class="mt-3 text-muted">Seleccione una partida para ver las preguntas</h4>
+                    <p class="text-muted">Use el filtro de partida para comenzar a explorar las preguntas del sistema.</p>
+                {% else %}
+                    <i class="fas fa-question-circle text-muted" style="font-size: 4rem;"></i>
+                    <h4 class="mt-3 text-muted">No hay preguntas disponibles</h4>
+                    <p class="text-muted">No se encontraron preguntas con los filtros seleccionados.</p>
+                    <a href="{% url 'unidad_lista' %}" class="btn btn-primary">
+                        <i class="fas fa-list-ol me-2"></i>Ver Unidades
+                    </a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+
+<!-- Modal para mostrar el prompt -->
+<div class="modal fade" id="promptModal" tabindex="-1" aria-labelledby="promptModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="promptModalLabel">
+                    <i class="fas fa-robot me-2"></i>Prompt para Generación de Preguntas
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <button type="button" class="btn btn-primary" onclick="copiarPrompt()" id="copiarBtn">
+                        <i class="fas fa-copy me-2"></i>Copiar Prompt
+                    </button>
+                </div>
+                <div class="border rounded p-3" style="background-color: #f8f9fa; max-height: 600px; overflow-y: auto;">
+                    <pre id="promptContent" style="white-space: pre-wrap; font-family: 'Courier New', monospace; font-size: 12px; margin: 0;"></pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Variables globales para el estado de edición
+let editingStates = {};
+
+// Función para alternar modo de edición
+function toggleEdit(preguntaId) {
+    const isEditing = editingStates[preguntaId] || false;
+    
+    if (isEditing) {
+        // Salir del modo de edición
+        exitEditMode(preguntaId);
+    } else {
+        // Entrar al modo de edición
+        enterEditMode(preguntaId);
+    }
+}
+
+function enterEditMode(preguntaId) {
+    editingStates[preguntaId] = true;
+    
+    // Mostrar campos de edición
+    document.getElementById(`enunciado${preguntaId}`).style.display = 'none';
+    document.getElementById(`enunciadoEdit${preguntaId}`).style.display = 'block';
+    document.getElementById(`addOptionBtn${preguntaId}`).style.display = 'inline-block';
+    
+    // Mostrar botón guardar
+    document.getElementById(`saveBtn${preguntaId}`).style.display = 'inline-block';
+    
+    // Habilitar edición de opciones
+    const opcionesContainer = document.getElementById(`opciones${preguntaId}`);
+    const opciones = opcionesContainer.querySelectorAll('.opcion-item');
+    
+    opciones.forEach(opcionItem => {
+        const opcionTexto = opcionItem.querySelector('.opcion-texto');
+        const opcionEdit = opcionItem.querySelector('.opcion-edit');
+        const radioInput = opcionItem.querySelector('input[type="radio"]');
+        const opcionActions = opcionItem.querySelector('.opcion-actions');
+        
+        opcionTexto.style.display = 'none';
+        opcionEdit.style.display = 'block';
+        radioInput.disabled = false;
+        
+        // Mostrar botón de eliminar
+        if (opcionActions) {
+            opcionActions.style.display = 'block';
+        }
+        
+        // Agregar evento para cambiar respuesta correcta
+        radioInput.addEventListener('change', function() {
+            updateCorrectAnswer(preguntaId);
+        });
+        
+        // Agregar evento de doble clic para editar opciones
+        opcionTexto.addEventListener('dblclick', function() {
+            opcionTexto.style.display = 'none';
+            opcionEdit.style.display = 'block';
+            opcionEdit.focus();
+        });
+        
+        // Agregar evento para salir de edición de opción
+        opcionEdit.addEventListener('blur', function() {
+            opcionTexto.textContent = opcionEdit.value;
+            opcionTexto.style.display = 'block';
+            opcionEdit.style.display = 'none';
+        });
+    });
+}
+
+function exitEditMode(preguntaId) {
+    editingStates[preguntaId] = false;
+    
+    // Ocultar campos de edición
+    document.getElementById(`enunciado${preguntaId}`).style.display = 'block';
+    document.getElementById(`enunciadoEdit${preguntaId}`).style.display = 'none';
+    document.getElementById(`addOptionBtn${preguntaId}`).style.display = 'none';
+    
+    // Ocultar botón guardar
+    document.getElementById(`saveBtn${preguntaId}`).style.display = 'none';
+    
+    // Deshabilitar edición de opciones
+    const opcionesContainer = document.getElementById(`opciones${preguntaId}`);
+    const opciones = opcionesContainer.querySelectorAll('.opcion-item');
+    
+    opciones.forEach(opcionItem => {
+        const opcionTexto = opcionItem.querySelector('.opcion-texto');
+        const opcionEdit = opcionItem.querySelector('.opcion-edit');
+        const radioInput = opcionItem.querySelector('input[type="radio"]');
+        const opcionActions = opcionItem.querySelector('.opcion-actions');
+        
+        opcionTexto.style.display = 'block';
+        opcionEdit.style.display = 'none';
+        radioInput.disabled = true;
+        
+        // Ocultar botón de eliminar
+        if (opcionActions) {
+            opcionActions.style.display = 'none';
+        }
+    });
+}
+
+// Función para actualizar la respuesta correcta visualmente
+function updateCorrectAnswer(preguntaId) {
+    const opcionesContainer = document.getElementById(`opciones${preguntaId}`);
+    const opciones = opcionesContainer.querySelectorAll('.opcion-item');
+    
+    opciones.forEach(opcionItem => {
+        const radioInput = opcionItem.querySelector('input[type="radio"]');
+        
+        if (radioInput.checked) {
+            // Agregar clases para respuesta correcta
+            opcionItem.classList.add('border-success', 'bg-light');
+            opcionItem.classList.remove('border-secondary');
+        } else {
+            // Remover clases de respuesta correcta
+            opcionItem.classList.remove('border-success', 'bg-light');
+            opcionItem.classList.add('border-secondary');
+        }
+    });
+}
+
+// Función para guardar pregunta
+function saveQuestion(preguntaId) {
+    const enunciado = document.getElementById(`enunciadoEdit${preguntaId}`).value;
+    
+    // Recopilar datos de opciones
+    const opcionesData = [];
+    const opcionesContainer = document.getElementById(`opciones${preguntaId}`);
+    const opciones = opcionesContainer.querySelectorAll('.opcion-item');
+    
+    opciones.forEach(opcionItem => {
+        const opcionId = opcionItem.dataset.opcionId;
+        const opcionTexto = opcionItem.querySelector('.opcion-edit').value;
+        const radioInput = opcionItem.querySelector('input[type="radio"]');
+        const esCorrecta = radioInput.checked;
+        
+        opcionesData.push({
+            id: opcionId,
+            texto: opcionTexto,
+            es_correcta: esCorrecta
+        });
+    });
+    
+    // Enviar datos al servidor
+    fetch(`/api/preguntas/${preguntaId}/update/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            enunciado: enunciado,
+            opciones: opcionesData
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Actualizar la interfaz
+            document.getElementById(`enunciado${preguntaId}`).textContent = enunciado;
+            exitEditMode(preguntaId);
+            
+            // Mostrar mensaje de éxito
+            showAlert('Pregunta actualizada exitosamente', 'success');
+        } else {
+            showAlert('Error al actualizar la pregunta: ' + data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Error al actualizar la pregunta', 'danger');
+    });
+}
+
+// Función para agregar opción
+function addOption(preguntaId) {
+    const opcionesContainer = document.getElementById(`opciones${preguntaId}`);
+    const newOptionHtml = `
+        <div class="opcion-item mb-3 p-3 border rounded" data-opcion-id="new">
+            <div class="d-flex align-items-start">
+                <div class="form-check me-3 mt-1">
+                    <input class="form-check-input" type="radio" name="correcta${preguntaId}" value="new">
+                </div>
+                <div class="flex-grow-1 opcion-texto" style="display: none;">
+                    <div class="opcion-content">Nueva opción</div>
+                </div>
+                <div class="opcion-actions ms-2">
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteOption('new')" title="Eliminar">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+            <textarea class="form-control opcion-edit mt-2" rows="3" placeholder="Escriba la nueva opción aquí...">Nueva opción</textarea>
+        </div>
+    `;
+    
+    opcionesContainer.insertAdjacentHTML('beforeend', newOptionHtml);
+    
+    // Agregar event listener para el nuevo radio button
+    const newRadioInput = opcionesContainer.querySelector('input[value="new"]');
+    if (newRadioInput) {
+        newRadioInput.addEventListener('change', function() {
+            updateCorrectAnswer(preguntaId);
+        });
+    }
+}
+
+// Función para eliminar opción
+function deleteOption(opcionId) {
+    if (confirm('¿Está seguro de que desea eliminar esta opción?')) {
+        fetch(`/api/opciones/${opcionId}/delete/`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.querySelector(`[data-opcion-id="${opcionId}"]`).remove();
+                showAlert('Opción eliminada exitosamente', 'success');
+            } else {
+                showAlert('Error al eliminar la opción: ' + data.error, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('Error al eliminar la opción', 'danger');
+        });
+    }
+}
+
+// Función para ver el prompt
+function verPrompt() {
+    const btn = document.getElementById('verPromptBtn');
+    const originalText = btn.innerHTML;
+    
+    // Mostrar estado de carga
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Generando prompt...';
+    
+    // Obtener parámetros de filtro actuales
+    const urlParams = new URLSearchParams(window.location.search);
+    const partidaId = urlParams.get('partida');
+    const programaId = urlParams.get('programa_analitico');
+    const unidadId = urlParams.get('unidad');
+    
+    if (!partidaId) {
+        showAlert('Por favor seleccione una partida para ver el prompt', 'warning');
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        return;
+    }
+    
+    if (!unidadId) {
+        showAlert('Por favor seleccione una unidad específica para generar el prompt personalizado', 'warning');
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        return;
+    }
+    
+    // Construir URL con parámetros disponibles
+    let url = `/api/obtener-prompt/?partida=${partidaId}`;
+    if (programaId) {
+        url += `&programa_analitico=${programaId}`;
+    }
+    if (unidadId) {
+        url += `&unidad=${unidadId}`;
+    }
+    
+    // Llamar a la API para obtener el prompt
+    fetch(url, {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('promptContent').textContent = data.prompt;
+            const modal = new bootstrap.Modal(document.getElementById('promptModal'));
+            modal.show();
+        } else {
+            showAlert('Error al obtener el prompt: ' + data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Error al obtener el prompt', 'danger');
+    })
+    .finally(() => {
+        // Restaurar botón
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    });
+}
+
+// Función para copiar el prompt al portapapeles
+function copiarPrompt() {
+    const promptContent = document.getElementById('promptContent').textContent;
+    
+    navigator.clipboard.writeText(promptContent).then(() => {
+        const btn = document.getElementById('copiarBtn');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check me-2"></i>¡Copiado!';
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-success');
+        
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-primary');
+        }, 2000);
+        
+        showAlert('Prompt copiado al portapapeles', 'success');
+    }).catch(err => {
+        console.error('Error al copiar:', err);
+        showAlert('Error al copiar el prompt', 'danger');
+    });
+}
+
+// Función para descargar Google Docs
+function descargarGoogleDocs() {
+    const btn = document.getElementById('descargarBtn');
+    const originalText = btn.innerHTML;
+    
+    // Mostrar estado de carga
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Generando documento...';
+    
+    // Obtener parámetros de filtro actuales
+    const urlParams = new URLSearchParams(window.location.search);
+    const partidaId = urlParams.get('partida');
+    const programaId = urlParams.get('programa_analitico');
+    const unidadId = urlParams.get('unidad');
+    
+    if (!partidaId) {
+        showAlert('Por favor seleccione una partida para descargar el documento', 'warning');
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        return;
+    }
+    
+    // Ya no es obligatorio elegir unidad; el documento abarcará todo
+    
+    // Construir URL con parámetros disponibles
+    let url = `/api/descargar-google-docs/?partida=${partidaId}`;
+    if (programaId) {
+        url += `&programa_analitico=${programaId}`;
+    }
+    if (unidadId) {
+        url += `&unidad=${unidadId}`; // opcional
+    }
+    
+    // Llamar a la API para generar el documento
+    fetch(url, {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => {
+        if (response.ok) {
+            return response.blob();
+        }
+        throw new Error('Error al generar el documento');
+    })
+    .then(blob => {
+        // Crear enlace de descarga
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'preguntas_google_docs.docx';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        showAlert('Documento descargado exitosamente', 'success');
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Error al generar el documento: ' + error.message, 'danger');
+    })
+    .finally(() => {
+        // Restaurar botón
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    });
+}
+
+// Función para mostrar alertas
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.top = '20px';
+    alertDiv.style.right = '20px';
+    alertDiv.style.zIndex = '9999';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(alertDiv);
+    
+    // Auto-remover después de 3 segundos
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 3000);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const partidaSelect = document.getElementById('partida');
+    const programaSelect = document.getElementById('programa_analitico');
+    const unidadSelect = document.getElementById('unidad');
+    
+    // Función para cargar programas analíticos
+    function cargarProgramasAnaliticos(partidaId) {
+        if (!partidaId) {
+            programaSelect.innerHTML = '<option value="">Primero seleccione una partida</option>';
+            programaSelect.disabled = true;
+            unidadSelect.innerHTML = '<option value="">Primero seleccione un plan analítico</option>';
+            unidadSelect.disabled = true;
+            return;
+        }
+        
+        fetch(`/api/programas-analiticos/?partida_id=${partidaId}`)
+            .then(response => response.json())
+            .then(data => {
+                programaSelect.innerHTML = '<option value="">Seleccione un plan analítico</option>';
+                data.forEach(programa => {
+                    const option = document.createElement('option');
+                    option.value = programa.linea_educativa_id;
+                    option.textContent = programa.titulo;
+                    programaSelect.appendChild(option);
+                });
+                programaSelect.disabled = false;
+                
+                // Limpiar unidades
+                unidadSelect.innerHTML = '<option value="">Primero seleccione un plan analítico</option>';
+                unidadSelect.disabled = true;
+            })
+            .catch(error => {
+                console.error('Error al cargar programas analíticos:', error);
+                programaSelect.innerHTML = '<option value="">Error al cargar datos</option>';
+            });
+    }
+    
+    // Función para cargar unidades
+    function cargarUnidades(programaId) {
+        if (!programaId) {
+            unidadSelect.innerHTML = '<option value="">Primero seleccione un plan analítico</option>';
+            unidadSelect.disabled = true;
+            return;
+        }
+        
+        fetch(`/api/unidades/?programa_id=${programaId}`)
+            .then(response => response.json())
+            .then(data => {
+                unidadSelect.innerHTML = '<option value="">Seleccione una unidad</option>';
+                data.forEach(unidad => {
+                    const option = document.createElement('option');
+                    option.value = unidad.unidad_id;
+                    option.textContent = `Unidad ${unidad.numero_unidad}: ${unidad.descripcion}`;
+                    unidadSelect.appendChild(option);
+                });
+                unidadSelect.disabled = false;
+            })
+            .catch(error => {
+                console.error('Error al cargar unidades:', error);
+                unidadSelect.innerHTML = '<option value="">Error al cargar datos</option>';
+            });
+    }
+    
+    // Event listeners
+    partidaSelect.addEventListener('change', function() {
+        const partidaId = this.value;
+        cargarProgramasAnaliticos(partidaId);
+    });
+    
+    programaSelect.addEventListener('change', function() {
+        const programaId = this.value;
+        cargarUnidades(programaId);
+    });
+    
+    // Cargar datos iniciales si hay valores en los parámetros GET
+    const urlParams = new URLSearchParams(window.location.search);
+    const partidaParam = urlParams.get('partida');
+    const programaParam = urlParams.get('programa_analitico');
+    const unidadParam = urlParams.get('unidad');
+    
+    if (partidaParam) {
+        cargarProgramasAnaliticos(partidaParam);
+        
+        if (programaParam) {
+            // Esperar un poco para que se carguen los programas
+            setTimeout(() => {
+                programaSelect.value = programaParam;
+                cargarUnidades(programaParam);
+                
+                if (unidadParam) {
+                    // Esperar un poco para que se carguen las unidades
+                    setTimeout(() => {
+                        unidadSelect.value = unidadParam;
+                    }, 500);
+                }
+            }, 500);
+        }
+    }
+    
+    // Validación del formulario
+    document.getElementById('filtrosForm').addEventListener('submit', function(e) {
+        if (!partidaSelect.value) {
+            e.preventDefault();
+            showAlert('Por favor seleccione una partida para continuar.', 'warning');
+            partidaSelect.focus();
+            return;
+        }
+        
+        if (!programaSelect.value) {
+            e.preventDefault();
+            showAlert('Por favor seleccione un plan analítico para continuar con el filtrado.', 'warning');
+            programaSelect.focus();
+            return;
+        }
+    });
+});
+</script>
+
+<style>
+/* Estilos mejorados para preguntas con layout de 1-2 por fila */
+.pregunta-card {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: box-shadow 0.3s ease;
+}
+
+.pregunta-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.pregunta-enunciado {
+    line-height: 1.6;
+    font-size: 0.95rem;
+    min-height: 60px;
+}
+
+.opcion-content {
+    line-height: 1.5;
+    font-size: 0.9rem;
+    word-wrap: break-word;
+}
+
+.opcion-item {
+    transition: all 0.2s ease;
+}
+
+.opcion-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.opcion-item.border-success {
+    border-width: 2px !important;
+}
+
+/* Mejorar visibilidad del radio button */
+.form-check-input {
+    transform: scale(1.2);
+    margin-top: 0.1rem;
+}
+
+.form-check-input:checked {
+    background-color: #198754;
+    border-color: #198754;
+}
+
+/* Asegurar que el radio button se vea bien en modo de edición */
+.opcion-item .form-check-input {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Mejorar espaciado en pantallas pequeñas */
+@media (max-width: 768px) {
+    .pregunta-enunciado {
+        padding: 1rem !important;
+        font-size: 0.9rem;
+    }
+    
+    .opcion-item {
+        padding: 1rem !important;
+        margin-bottom: 1rem !important;
+    }
+}
+
+/* Mejorar legibilidad en pantallas grandes */
+@media (min-width: 992px) {
+    .pregunta-enunciado {
+        font-size: 1rem;
+        padding: 1.5rem !important;
+    }
+    
+    .opcion-content {
+        font-size: 0.95rem;
+    }
+}
+</style>
+{% endblock %}

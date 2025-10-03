@@ -1,0 +1,258 @@
+{% extends 'base.html' %}
+
+{% block title %}Edición Masiva - {{ unidad.descripcion }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'asignatura_lista' %}">Inicio</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'unidad_lista' %}">Unidades</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'unidad_detalle' unidad.pk %}">{{ unidad.descripcion }}</a></li>
+                <li class="breadcrumb-item active">Edición Masiva</li>
+            </ol>
+        </nav>
+        <h1><i class="fas fa-edit me-2"></i>Edición Masiva de Preguntas</h1>
+    </div>
+    <div>
+        <a href="{% url 'unidad_detalle' unidad.pk %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Volver a Unidad
+        </a>
+    </div>
+</div>
+
+<!-- Información -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h5>{{ unidad.descripcion }}</h5>
+                <p class="text-muted">{{ unidad.programa_analitico.asignatura.descripcion }} - {{ unidad.programa_analitico.titulo }}</p>
+            </div>
+            <div class="col-md-6 text-end">
+                <span class="badge bg-primary fs-6">{{ page_obj.paginator.count }} preguntas total</span>
+                <br>
+                <small class="text-muted">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Instrucciones -->
+<div class="alert alert-info">
+    <i class="fas fa-lightbulb me-2"></i>
+    <strong>¡Edición súper fácil!</strong> Modifica las preguntas directamente en la tabla y guarda todos los cambios de una vez. 
+    Es como editar en Excel o Google Sheets.
+</div>
+
+<!-- Formulario de Edición Masiva -->
+<form method="post" id="edicionMasivaForm">
+    {% csrf_token %}
+    
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-table me-2"></i>Preguntas ({{ preguntas.count }})
+            </h5>
+            <div>
+                <button type="submit" class="btn btn-success" id="guardarBtn">
+                    <i class="fas fa-save me-2"></i>Guardar Cambios
+                </button>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th width="60">#</th>
+                            <th>Enunciado de la Pregunta</th>
+                            <th width="120">Opciones</th>
+                            <th width="100">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pregunta in preguntas %}
+                        <tr>
+                            <td class="align-middle">
+                                <strong>{{ pregunta.numero }}</strong>
+                            </td>
+                            <td>
+                                <textarea name="pregunta_{{ pregunta.pk }}" 
+                                          class="form-control" 
+                                          rows="3" 
+                                          placeholder="Escribe aquí el enunciado de la pregunta..."
+                                          style="resize: vertical; min-height: 80px;">{{ pregunta.enunciado }}</textarea>
+                            </td>
+                            <td class="align-middle text-center">
+                                <span class="badge bg-info">{{ pregunta.opciones.count }}</span>
+                                <br>
+                                <small class="text-muted">
+                                    {% for opcion in pregunta.opciones.all %}
+                                        {% if opcion.es_correcta %}
+                                            <span class="text-success">✓</span>
+                                        {% endif %}
+                                    {% endfor %}
+                                    correcta(s)
+                                </small>
+                            </td>
+                            <td class="align-middle">
+                                <div class="btn-group-vertical" role="group">
+                                    <a href="{% url 'unidad_detalle' unidad.pk %}#pregunta_{{ pregunta.numero }}" 
+                                       class="btn btn-sm btn-outline-primary" title="Ver detalles">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-outline-info" 
+                                            title="Ver opciones" 
+                                            onclick="verOpciones({{ pregunta.pk }})">
+                                        <i class="fas fa-list"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</form>
+
+<!-- Paginación -->
+{% if page_obj.has_other_pages %}
+<nav aria-label="Paginación" class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page=1">Primera</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+            </li>
+        {% endif %}
+
+        {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+                <li class="page-item active">
+                    <span class="page-link">{{ num }}</span>
+                </li>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                </li>
+            {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Siguiente</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Última</a>
+            </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+<!-- Modal para ver opciones -->
+<div class="modal fade" id="opcionesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Opciones de la Pregunta</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="opcionesContent">
+                <!-- Contenido cargado dinámicamente -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Acciones Rápidas -->
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-magic text-primary" style="font-size: 2rem;"></i>
+                <h5 class="mt-2">Generar Más</h5>
+                <p class="text-muted">Genera preguntas adicionales automáticamente</p>
+                <a href="{% url 'unidad_detalle' unidad.pk %}#generar" class="btn btn-primary">
+                    <i class="fas fa-plus me-2"></i>Generar
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-eye text-info" style="font-size: 2rem;"></i>
+                <h5 class="mt-2">Ver Unidad</h5>
+                <p class="text-muted">Ver todas las preguntas en formato detallado</p>
+                <a href="{% url 'unidad_detalle' unidad.pk %}" class="btn btn-info">
+                    <i class="fas fa-eye me-2"></i>Ver Detalle
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-list text-success" style="font-size: 2rem;"></i>
+                <h5 class="mt-2">Todas las Preguntas</h5>
+                <p class="text-muted">Ver todas las preguntas del sistema</p>
+                <a href="{% url 'pregunta_lista' %}" class="btn btn-success">
+                    <i class="fas fa-list me-2"></i>Ver Todas
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Función para ver opciones de una pregunta
+function verOpciones(preguntaId) {
+    // Aquí podrías cargar las opciones vía AJAX
+    // Por ahora, mostraremos un mensaje
+    document.getElementById('opcionesContent').innerHTML = 
+        '<p>Cargando opciones de la pregunta #' + preguntaId + '...</p>';
+    
+    var modal = new bootstrap.Modal(document.getElementById('opcionesModal'));
+    modal.show();
+}
+
+// Auto-guardar cada 30 segundos (opcional)
+let autoSaveTimer;
+function iniciarAutoGuardado() {
+    autoSaveTimer = setInterval(function() {
+        // Aquí podrías implementar auto-guardado vía AJAX
+        console.log('Auto-guardado...');
+    }, 30000);
+}
+
+// Detectar cambios en el formulario
+document.getElementById('edicionMasivaForm').addEventListener('input', function() {
+    // Marcar que hay cambios sin guardar
+    document.getElementById('guardarBtn').classList.add('btn-warning');
+    document.getElementById('guardarBtn').innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Guardar Cambios';
+});
+
+// Confirmar antes de salir si hay cambios
+window.addEventListener('beforeunload', function(e) {
+    if (document.getElementById('guardarBtn').classList.contains('btn-warning')) {
+        e.preventDefault();
+        e.returnValue = '';
+    }
+});
+
+// Iniciar auto-guardado
+iniciarAutoGuardado();
+</script>
+{% endblock %}

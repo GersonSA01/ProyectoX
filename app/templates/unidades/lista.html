@@ -1,0 +1,391 @@
+{% extends 'base.html' %}
+
+{% block title %}Unidades - Sistema de Preguntas{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-list-ol me-2"></i>Unidades</h1>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtro por Plan Analítico</h5>
+    </div>
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-8">
+                <label for="programa_analitico" class="form-label">Plan Analítico</label>
+                <select class="form-select" id="programa_analitico" name="programa_analitico">
+                    <option value="">Todos los planes analíticos</option>
+                    {% for programa in programas_analiticos %}
+                    <option value="{{ programa.linea_educativa_id }}" 
+                            {% if request.GET.programa_analitico == programa.linea_educativa_id|stringformat:"s" %}selected{% endif %}>
+                        {{ programa.titulo }}
+                        {% if programa.asignatura %}
+                            - {{ programa.asignatura.descripcion }}
+                            {% if programa.asignatura.carrera %}
+                                ({{ programa.asignatura.carrera.descripcion }})
+                            {% endif %}
+                        {% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2">
+                    <i class="fas fa-search me-1"></i>Filtrar
+                </button>
+                <a href="{% url 'unidad_lista' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-times me-1"></i>Limpiar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Lista de Unidades -->
+<div class="card">
+    <div class="card-body">
+        {% csrf_token %}
+        {% if unidades %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Unidad</th>
+                            <th>Descripción</th>
+                            <th>Plan Analítico</th>
+                            <th>Carrera</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for unidad in unidades %}
+                        <tr id="unidad-{{ unidad.unidad_id }}">
+                            <td>
+                                <strong>{{ unidad.numero_unidad }}</strong>
+                            </td>
+                            <td>
+                                <div class="editable-descripcion" data-unidad-id="{{ unidad.unidad_id }}">
+                                    <div class="d-flex align-items-center">
+                                        <span class="descripcion-text flex-grow-1">{{ unidad.descripcion }}</span>
+                                        <button type="button" class="btn btn-sm btn-outline-primary edit-btn ms-2" title="Editar descripción">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                    </div>
+                                    <div class="edit-mode d-none">
+                                        <div class="d-flex align-items-center">
+                                            <input type="text" class="form-control form-control-sm descripcion-input flex-grow-1" 
+                                                   value="{{ unidad.descripcion }}" maxlength="200">
+                                            <button type="button" class="btn btn-sm btn-success save-btn ms-2" title="Guardar">
+                                                <i class="fas fa-save"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary cancel-btn ms-1" title="Cancelar">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ unidad.programa_analitico.titulo }}</td>
+                            <td>
+                                {% if unidad.programa_analitico.asignatura.carrera %}
+                                    <span class="badge bg-primary">{{ unidad.programa_analitico.asignatura.carrera.descripcion }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Sin carrera</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginación -->
+            {% if is_paginated %}
+            <nav aria-label="Paginación">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% if request.GET.asignatura %}&asignatura={{ request.GET.asignatura }}{% endif %}">Primera</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.asignatura %}&asignatura={{ request.GET.asignatura }}{% endif %}">Anterior</a>
+                        </li>
+                    {% endif %}
+
+                    <li class="page-item active">
+                        <span class="page-link">
+                            Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                        </span>
+                    </li>
+
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.asignatura %}&asignatura={{ request.GET.asignatura }}{% endif %}">Siguiente</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.asignatura %}&asignatura={{ request.GET.asignatura }}{% endif %}">Última</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-list-ol text-muted" style="font-size: 4rem;"></i>
+                <h4 class="mt-3 text-muted">No hay unidades disponibles</h4>
+                <p class="text-muted">Primero debes crear asignaturas y programas analíticos.</p>
+                <a href="{% url 'partida_lista' %}" class="btn btn-primary">
+                    <i class="fas fa-plus me-2"></i>Crear Partida
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Manejar edición inline de descripción
+    const editableElements = document.querySelectorAll('.editable-descripcion');
+    
+    editableElements.forEach(element => {
+        const textSpan = element.querySelector('.descripcion-text');
+        const inputField = element.querySelector('.descripcion-input');
+        const editBtn = element.querySelector('.edit-btn');
+        const saveBtn = element.querySelector('.save-btn');
+        const cancelBtn = element.querySelector('.cancel-btn');
+        const editMode = element.querySelector('.edit-mode');
+        const unidadId = element.dataset.unidadId;
+        
+        // Mostrar modo de edición al hacer click en el botón de editar
+        editBtn.addEventListener('click', function() {
+            entrarModoEdicion(element, textSpan, editMode, inputField);
+        });
+        
+        // Guardar al hacer click en el botón guardar
+        saveBtn.addEventListener('click', function() {
+            guardarDescripcion(unidadId, inputField.value.trim());
+        });
+        
+        // Cancelar al hacer click en el botón cancelar
+        cancelBtn.addEventListener('click', function() {
+            salirModoEdicion(element, textSpan, editMode, inputField);
+        });
+        
+        // Guardar al presionar Enter
+        inputField.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                guardarDescripcion(unidadId, inputField.value.trim());
+            }
+        });
+        
+        // Cancelar al presionar Escape
+        inputField.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                salirModoEdicion(element, textSpan, editMode, inputField);
+            }
+        });
+    });
+    
+    function guardarDescripcion(unidadId, nuevaDescripcion) {
+        const element = document.querySelector(`[data-unidad-id="${unidadId}"]`);
+        const textSpan = element.querySelector('.descripcion-text');
+        const inputField = element.querySelector('.descripcion-input');
+        const editMode = element.querySelector('.edit-mode');
+        const saveBtn = element.querySelector('.save-btn');
+        
+        // Validar que no esté vacío
+        if (!nuevaDescripcion) {
+            mostrarMensaje('La descripción no puede estar vacía', 'warning');
+            salirModoEdicion(element, textSpan, editMode, inputField);
+            return;
+        }
+        
+        // Si no cambió, solo salir del modo de edición
+        if (nuevaDescripcion === textSpan.textContent) {
+            salirModoEdicion(element, textSpan, editMode, inputField);
+            return;
+        }
+        
+        // Mostrar indicador de carga
+        inputField.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        saveBtn.disabled = true;
+        
+        // Verificar token CSRF
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (!csrfToken) {
+            mostrarMensaje('Error: Token CSRF no encontrado', 'danger');
+            salirModoEdicion(element, textSpan, editMode, inputField);
+            return;
+        }
+        
+        console.log('Enviando petición para unidad:', unidadId);
+        console.log('Nueva descripción:', nuevaDescripcion);
+        console.log('Token CSRF:', csrfToken.value);
+        
+        // Enviar petición AJAX
+        fetch(`/api/unidades/${unidadId}/update/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken.value
+            },
+            body: JSON.stringify({
+                descripcion: nuevaDescripcion
+            })
+        })
+        .then(response => {
+            console.log('Respuesta recibida:', response.status, response.statusText);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Datos recibidos:', data);
+            if (data.success) {
+                // Actualizar el texto mostrado
+                textSpan.textContent = data.unidad.descripcion;
+                salirModoEdicion(element, textSpan, editMode, inputField);
+                mostrarMensaje('Descripción actualizada exitosamente', 'success');
+            } else {
+                mostrarMensaje('Error: ' + data.error, 'danger');
+                salirModoEdicion(element, textSpan, editMode, inputField);
+            }
+        })
+        .catch(error => {
+            console.error('Error completo:', error);
+            mostrarMensaje('Error de conexión: ' + error.message, 'danger');
+            salirModoEdicion(element, textSpan, editMode, inputField);
+        });
+    }
+    
+    function entrarModoEdicion(element, textSpan, editMode, inputField) {
+        // Ocultar el texto y mostrar el modo de edición
+        textSpan.parentElement.classList.add('d-none');
+        editMode.classList.remove('d-none');
+        
+        // Enfocar el input y seleccionar todo el texto
+        inputField.focus();
+        inputField.select();
+    }
+    
+    function salirModoEdicion(element, textSpan, editMode, inputField) {
+        // Mostrar el texto y ocultar el modo de edición
+        textSpan.parentElement.classList.remove('d-none');
+        editMode.classList.add('d-none');
+        
+        // Restaurar el botón de guardar y habilitar el input
+        const saveBtn = element.querySelector('.save-btn');
+        saveBtn.innerHTML = '<i class="fas fa-save"></i>';
+        saveBtn.disabled = false;
+        inputField.disabled = false;
+        inputField.value = textSpan.textContent; // Restaurar valor original
+    }
+    
+    function mostrarMensaje(texto, tipo) {
+        // Crear o actualizar mensaje toast
+        let toast = document.getElementById('toastMensaje');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'toastMensaje';
+            toast.className = 'toast position-fixed top-0 end-0 m-3';
+            toast.style.zIndex = '9999';
+            toast.innerHTML = `
+                <div class="toast-header">
+                    <strong class="me-auto">Sistema</strong>
+                    <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                </div>
+                <div class="toast-body"></div>
+            `;
+            document.body.appendChild(toast);
+        }
+        
+        const toastBody = toast.querySelector('.toast-body');
+        toastBody.textContent = texto;
+        toastBody.className = `toast-body text-${tipo}`;
+        
+        // Mostrar toast
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+    }
+});
+
+// Estilos CSS para la edición inline
+const style = document.createElement('style');
+style.textContent = `
+    .editable-descripcion {
+        transition: all 0.2s ease;
+    }
+    
+    .descripcion-text {
+        display: inline-block;
+        min-width: 100px;
+        min-height: 20px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        transition: background-color 0.2s;
+    }
+    
+    .descripcion-text:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .edit-btn {
+        opacity: 0.7;
+        transition: opacity 0.2s;
+    }
+    
+    .edit-btn:hover {
+        opacity: 1;
+    }
+    
+    .edit-mode {
+        animation: slideIn 0.2s ease-out;
+    }
+    
+    .descripcion-input {
+        min-width: 200px;
+        border: 2px solid #0d6efd;
+        border-radius: 4px;
+        transition: border-color 0.2s;
+    }
+    
+    .descripcion-input:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+    }
+    
+    .save-btn, .cancel-btn {
+        transition: all 0.2s;
+    }
+    
+    .save-btn:hover {
+        transform: scale(1.05);
+    }
+    
+    .cancel-btn:hover {
+        transform: scale(1.05);
+    }
+    
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+`;
+document.head.appendChild(style);
+
+// JavaScript para edición inline de unidades (ya existente)
+</script>
+{% endblock %}
+{% endblock %}

@@ -1,0 +1,199 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ unidad.descripcion }} - Sistema de Preguntas{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'asignatura_lista' %}">Inicio</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'unidad_lista' %}">Unidades</a></li>
+                <li class="breadcrumb-item active">{{ unidad.descripcion }}</li>
+            </ol>
+        </nav>
+        <h1><i class="fas fa-list-ol me-2"></i>{{ unidad.descripcion }}</h1>
+    </div>
+    <div>
+        {% if unidad.preguntas.count > 0 %}
+        <a href="{% url 'edicion_masiva' unidad.pk %}" class="btn btn-warning">
+            <i class="fas fa-edit me-2"></i>Edición Masiva
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Información de la Unidad -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>Información de la Unidad
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Número:</strong> {{ unidad.numero_unidad }}</p>
+                        <p><strong>Descripción:</strong> {{ unidad.descripcion }}</p>
+                        <p><strong>Preguntas a generar:</strong> <span class="badge bg-primary">{{ unidad.num_preguntas }}</span></p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Programa:</strong> {{ unidad.programa_analitico.titulo }}</p>
+                        <p><strong>Asignatura:</strong> <span class="badge bg-success">{{ unidad.programa_analitico.asignatura.descripcion }}</span></p>
+                        <p><strong>Generación:</strong> 
+                            <span class="badge bg-success">Automática</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-pie me-2"></i>Progreso
+                </h5>
+            </div>
+            <div class="card-body text-center">
+                {% if unidad.num_preguntas > 0 %}
+                    {% widthratio unidad.preguntas.count unidad.num_preguntas 100 as progress_percent %}
+                    <div class="mb-3">
+                        <div class="progress" style="height: 30px;">
+                            <div class="progress-bar bg-success" role="progressbar" 
+                                 style="width: {{ progress_percent }}%;" 
+                                 aria-valuenow="{{ progress_percent }}" 
+                                 aria-valuemin="0" aria-valuemax="100">
+                                {{ progress_percent }}%
+                            </div>
+                        </div>
+                    </div>
+                    <h4 class="text-success">{{ unidad.preguntas.count }}</h4>
+                    <p class="text-muted mb-0">de {{ unidad.num_preguntas }} preguntas</p>
+                {% else %}
+                    <h4 class="text-muted">0</h4>
+                    <p class="text-muted mb-0">preguntas configuradas</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Generación Automática -->
+<div class="card mb-4" id="generar">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-magic me-2"></i>Generación Automática de Preguntas
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info">
+            <i class="fas fa-lightbulb me-2"></i>
+            <strong>¡Súper fácil!</strong> Genera {{ unidad.num_preguntas }} preguntas automáticamente con opciones básicas.
+        </div>
+        
+        <form method="post" action="{% url 'generar_preguntas_web' unidad.pk %}">
+            {% csrf_token %}
+            
+            <div class="row">
+                <div class="col-md-12">
+                    <label class="form-label">Opciones:</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="reemplazar" id="reemplazar">
+                        <label class="form-check-label" for="reemplazar">
+                            Reemplazar preguntas existentes ({{ unidad.preguntas.count }})
+                        </label>
+                    </div>
+                    <small class="text-muted">Si no está marcado, las nuevas preguntas se agregarán a las existentes.</small>
+                </div>
+            </div>
+            
+            <div class="mt-3">
+                <button type="submit" class="btn btn-success btn-lg" 
+                        onclick="return confirm('¿Estás seguro de generar {{ unidad.num_preguntas }} preguntas?');">
+                    <i class="fas fa-magic me-2"></i>
+                    Generar {{ unidad.num_preguntas }} Preguntas Automáticamente
+                </button>
+            </div>
+        </form>
+        
+        <!-- Información sobre la generación -->
+        <div class="mt-4">
+            <h6>Información sobre la generación:</h6>
+            <div class="card bg-light">
+                <div class="card-body">
+                    <p><strong>Enunciado:</strong> "Pregunta X sobre [Nombre de la Unidad]. Explique detalladamente."</p>
+                    <p><strong>Opciones:</strong> 4 opciones básicas (correcta, parcial, incorrecta, no relacionada)</p>
+                    <small class="text-muted">
+                        Las preguntas se generan automáticamente con contenido relacionado a la unidad.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preguntas Existentes -->
+{% if preguntas %}
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-question-circle me-2"></i>Preguntas Existentes ({{ preguntas.count }})
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="list-group list-group-flush">
+            {% for pregunta in preguntas %}
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1">{{ pregunta.numero }}. {{ pregunta.enunciado }}</h6>
+                        <div class="mt-2">
+                            {% for opcion in pregunta.opciones.all %}
+                            <div class="d-flex align-items-center mb-1">
+                                <span class="badge {% if opcion.es_correcta %}bg-success{% else %}bg-secondary{% endif %} me-2">
+                                    {% if opcion.es_correcta %}✓{% else %}○{% endif %}
+                                </span>
+                                <small>{{ opcion.opcion }}</small>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <span class="badge bg-info">{{ pregunta.opciones.count }} opciones</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        {% if preguntas.count > 10 %}
+        <div class="text-center mt-3">
+            <a href="{% url 'edicion_masiva' unidad.pk %}" class="btn btn-primary">
+                <i class="fas fa-edit me-2"></i>Ver Todas las Preguntas
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-question-circle me-2"></i>Preguntas
+        </h5>
+    </div>
+    <div class="card-body text-center py-5">
+        <i class="fas fa-question-circle text-muted" style="font-size: 4rem;"></i>
+        <h4 class="mt-3 text-muted">No hay preguntas creadas</h4>
+        <p class="text-muted">Usa la generación automática para crear {{ unidad.num_preguntas }} preguntas rápidamente.</p>
+        <a href="#generar" class="btn btn-success">
+            <i class="fas fa-magic me-2"></i>Generar Preguntas Ahora
+        </a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
