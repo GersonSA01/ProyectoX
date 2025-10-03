@@ -205,27 +205,31 @@ class PreguntaRepository:
     @staticmethod
     def list_all(limit: int = 100, offset: int = 0, unidad_id: Optional[int] = None) -> List[Dict[str, Any]]:
         client = get_supabase_client()
-        query = client.table("pregunta").select("pregunta_id, enunciado, numero, unidad_id")
+        query = client.table("pregunta").select("pregunta_id, enunciado, explicacion, numero, unidad_id")
         if unidad_id is not None:
             query = query.eq("unidad_id", unidad_id)
         res = query.limit(limit).offset(offset).execute()
         return res.data or []
 
     @staticmethod
-    def create(enunciado: str, numero: int, unidad_id: int) -> Dict[str, Any]:
+    def create(enunciado: str, numero: int, unidad_id: int, explicacion: Optional[str] = None) -> Dict[str, Any]:
         client = get_supabase_client()
         payload = {"enunciado": enunciado, "numero": numero, "unidad_id": unidad_id}
+        if explicacion:
+            payload["explicacion"] = explicacion
         res = client.table("pregunta").insert(payload).execute()
         return res.data[0] if res.data else None
 
     @staticmethod
-    def update(pregunta_id: int, enunciado: Optional[str] = None, numero: Optional[int] = None) -> Dict[str, Any]:
+    def update(pregunta_id: int, enunciado: Optional[str] = None, numero: Optional[int] = None, explicacion: Optional[str] = None) -> Dict[str, Any]:
         client = get_supabase_client()
         patch: Dict[str, Any] = {}
         if enunciado is not None:
             patch["enunciado"] = enunciado
         if numero is not None:
             patch["numero"] = numero
+        if explicacion is not None:
+            patch["explicacion"] = explicacion
         res = client.table("pregunta").update(patch).eq("pregunta_id", pregunta_id).execute()
         return res.data[0] if res.data else None
 

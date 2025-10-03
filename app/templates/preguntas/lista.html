@@ -88,6 +88,22 @@
                                 <textarea class="form-control pregunta-edit mt-2" id="enunciadoEdit{{ pregunta.pregunta_id }}" style="display: none;" rows="4">{{ pregunta.enunciado }}</textarea>
                             </div>
                             
+                            <!-- Explicación -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">Explicación:</label>
+                                {% if pregunta.explicacion %}
+                                <div class="pregunta-explicacion p-3 bg-info bg-opacity-10 rounded" id="explicacion{{ pregunta.pregunta_id }}">
+                                    {{ pregunta.explicacion }}
+                                </div>
+                                <textarea class="form-control pregunta-edit mt-2" id="explicacionEdit{{ pregunta.pregunta_id }}" style="display: none;" rows="3">{{ pregunta.explicacion }}</textarea>
+                                {% else %}
+                                <div class="pregunta-explicacion p-3 bg-light rounded text-muted" id="explicacion{{ pregunta.pregunta_id }}">
+                                    <em>Sin explicación disponible</em>
+                                </div>
+                                <textarea class="form-control pregunta-edit mt-2" id="explicacionEdit{{ pregunta.pregunta_id }}" style="display: none;" rows="3" placeholder="Agregar explicación de la respuesta correcta..."></textarea>
+                                {% endif %}
+                            </div>
+                            
                             <!-- Opciones -->
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Opciones:</label>
@@ -237,6 +253,15 @@ function enterEditMode(preguntaId) {
     // Mostrar campos de edición
     document.getElementById(`enunciado${preguntaId}`).style.display = 'none';
     document.getElementById(`enunciadoEdit${preguntaId}`).style.display = 'block';
+    
+    // Mostrar campo de explicación si existe
+    const explicacionDiv = document.getElementById(`explicacion${preguntaId}`);
+    const explicacionEdit = document.getElementById(`explicacionEdit${preguntaId}`);
+    if (explicacionDiv && explicacionEdit) {
+        explicacionDiv.style.display = 'none';
+        explicacionEdit.style.display = 'block';
+    }
+    
     document.getElementById(`addOptionBtn${preguntaId}`).style.display = 'inline-block';
     
     // Mostrar botón guardar
@@ -288,6 +313,15 @@ function exitEditMode(preguntaId) {
     // Ocultar campos de edición
     document.getElementById(`enunciado${preguntaId}`).style.display = 'block';
     document.getElementById(`enunciadoEdit${preguntaId}`).style.display = 'none';
+    
+    // Ocultar campo de explicación si existe
+    const explicacionDiv = document.getElementById(`explicacion${preguntaId}`);
+    const explicacionEdit = document.getElementById(`explicacionEdit${preguntaId}`);
+    if (explicacionDiv && explicacionEdit) {
+        explicacionDiv.style.display = 'block';
+        explicacionEdit.style.display = 'none';
+    }
+    
     document.getElementById(`addOptionBtn${preguntaId}`).style.display = 'none';
     
     // Ocultar botón guardar
@@ -338,6 +372,10 @@ function updateCorrectAnswer(preguntaId) {
 function saveQuestion(preguntaId) {
     const enunciado = document.getElementById(`enunciadoEdit${preguntaId}`).value;
     
+    // Obtener explicación si existe
+    const explicacionEdit = document.getElementById(`explicacionEdit${preguntaId}`);
+    const explicacion = explicacionEdit ? explicacionEdit.value : '';
+    
     // Recopilar datos de opciones
     const opcionesData = [];
     const opcionesContainer = document.getElementById(`opciones${preguntaId}`);
@@ -365,6 +403,7 @@ function saveQuestion(preguntaId) {
         },
         body: JSON.stringify({
             enunciado: enunciado,
+            explicacion: explicacion,
             opciones: opcionesData
         })
     })
@@ -373,6 +412,19 @@ function saveQuestion(preguntaId) {
         if (data.success) {
             // Actualizar la interfaz
             document.getElementById(`enunciado${preguntaId}`).textContent = enunciado;
+            
+            // Actualizar explicación si existe
+            const explicacionDiv = document.getElementById(`explicacion${preguntaId}`);
+            if (explicacionDiv) {
+                if (explicacion && explicacion.trim()) {
+                    explicacionDiv.textContent = explicacion;
+                    explicacionDiv.className = 'pregunta-explicacion p-3 bg-info bg-opacity-10 rounded';
+                } else {
+                    explicacionDiv.innerHTML = '<em>Sin explicación disponible</em>';
+                    explicacionDiv.className = 'pregunta-explicacion p-3 bg-light rounded text-muted';
+                }
+            }
+            
             exitEditMode(preguntaId);
             
             // Mostrar mensaje de éxito

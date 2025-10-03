@@ -115,6 +115,7 @@ class Unidad(models.Model):
 class Pregunta(models.Model):
     pregunta_id = models.AutoField(primary_key=True)
     enunciado = models.TextField()
+    explicacion = models.TextField(blank=True, null=True, help_text="Explicación detallada de la respuesta correcta")
     numero = models.IntegerField()
     unidad = models.ForeignKey(
         Unidad, on_delete=models.CASCADE, related_name="preguntas"

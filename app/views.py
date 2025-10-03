@@ -375,13 +375,14 @@ def update_pregunta_api(request, pregunta_id):
     try:
         data = json.loads(request.body)
         enunciado = data.get('enunciado', '').strip()
+        explicacion = data.get('explicacion', '').strip()
         opciones = data.get('opciones', [])
 
         if not enunciado:
             return JsonResponse({'success': False, 'error': 'Enunciado requerido'}, status=400)
 
-        # Actualizar enunciado de la pregunta
-        pregunta = PreguntaRepository.update(int(pregunta_id), enunciado=enunciado)
+        # Actualizar enunciado y explicación de la pregunta
+        pregunta = PreguntaRepository.update(int(pregunta_id), enunciado=enunciado, explicacion=explicacion)
         if not pregunta:
             return JsonResponse({'success': False, 'error': 'Error al actualizar pregunta'}, status=400)
 
@@ -591,7 +592,10 @@ def descargar_google_docs(request):
                     'preguntas': []
                 }
 
-                for pregunta in preguntas:
+                # Ordenar preguntas por número
+                preguntas_ordenadas = sorted(preguntas, key=lambda x: int(x.get('numero', 0)))
+                
+                for pregunta in preguntas_ordenadas:
                     if total_preguntas >= max_preguntas:
                         break
                         
@@ -600,6 +604,7 @@ def descargar_google_docs(request):
                     pregunta_info = {
                         'numero': pregunta['numero'],
                         'enunciado': pregunta['enunciado'],
+                        'explicacion': pregunta.get('explicacion', ''),
                         'opciones': []
                     }
 
@@ -923,8 +928,9 @@ def generar_documento_word(partida, asignatura, carrera, unidades_data):
                 for pregunta in unidad.get('preguntas', []):
                     try:
                         # Título de la pregunta con estilo propio
+                        numero_pregunta = pregunta.get('numero', contador_pregunta_global)
                         pregunta_paragraph = doc.add_paragraph(
-                            f'Pregunta {contador_pregunta_global}',
+                            f'Pregunta {numero_pregunta}',
                             style='PreguntaTitulo'
                         )
                         pregunta_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
@@ -975,6 +981,23 @@ def generar_documento_word(partida, asignatura, carrera, unidades_data):
                                 respuesta_run.font.size = Pt(11)
                                 respuesta_run.font.color.rgb = RGBColor(0, 0, 0)
                                 break
+
+                        # Explicación de la respuesta
+                        explicacion = pregunta.get('explicacion', '').strip()
+                        if explicacion:
+                            explicacion_paragraph = doc.add_paragraph()
+                            explicacion_paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                            explicacion_paragraph.paragraph_format.left_indent = Inches(0.3)
+                            
+                            explicacion_heading = explicacion_paragraph.add_run('Explicación: ')
+                            explicacion_heading.bold = True
+                            explicacion_heading.font.size = Pt(11)
+                            explicacion_heading.font.color.rgb = RGBColor(0, 0, 0)
+                            
+                            explicacion_text = str(explicacion)[:800]  # Limitar longitud
+                            explicacion_run = explicacion_paragraph.add_run(explicacion_text)
+                            explicacion_run.font.size = Pt(11)
+                            explicacion_run.font.color.rgb = RGBColor(0, 0, 0)
 
                         # Incrementar contador global
                         contador_pregunta_global += 1
