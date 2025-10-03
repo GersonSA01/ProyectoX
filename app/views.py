@@ -531,42 +531,59 @@ def descargar_google_docs(request):
         from docx import Document
         from docx.shared import Inches
         import io
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.info(f"Iniciando descarga de documento para partida: {request.GET.get('partida')}")
 
         partida_id = request.GET.get('partida')
         programa_id = request.GET.get('programa_analitico')
         unidad_id = request.GET.get('unidad')
 
         if not partida_id:
+            logger.error("Partida no proporcionada")
             return JsonResponse({'success': False, 'error': 'Partida requerida'}, status=400)
 
         # Obtener datos (similar a obtener_prompt)
         partida = PartidaRepository.get_by_id(int(partida_id))
         if not partida:
+            logger.error(f"Partida {partida_id} no encontrada")
             return JsonResponse({'success': False, 'error': 'Partida no encontrada'}, status=404)
 
         asignatura = AsignaturaRepository.get_by_id(partida['asignatura_id'])
         if not asignatura:
+            logger.error(f"Asignatura {partida['asignatura_id']} no encontrada")
             return JsonResponse({'success': False, 'error': 'Asignatura no encontrada'}, status=404)
 
         carrera = None
         if asignatura.get('carrera_id'):
             carrera = CarreraRepository.get_by_id(asignatura['carrera_id'])
 
-        # Obtener datos de preguntas (SIN FILTRAR POR UNIDAD - TODAS LAS UNIDADES)
+        # Obtener datos de preguntas con límites para evitar documentos muy grandes
         unidades_data = []
         programas = ProgramaAnaliticoRepository.list_by_asignatura(
             asignatura_id=asignatura['asignatura_id']
         )
 
+        total_preguntas = 0
+        max_preguntas = 500  # Límite para evitar documentos muy grandes
+
         for programa in programas:
+            if total_preguntas >= max_preguntas:
+                logger.warning(f"Límite de {max_preguntas} preguntas alcanzado")
+                break
+                
             unidades = UnidadRepository.list_all(
-                limit=1000,
+                limit=100,
                 programa_analitico_id=programa['linea_educativa_id']
             )
 
             for unidad in unidades:
-                # NO FILTRAR POR UNIDAD - INCLUIR TODAS LAS UNIDADES
-                preguntas = PreguntaRepository.list_all(limit=1000, unidad_id=unidad['unidad_id'])
+                if total_preguntas >= max_preguntas:
+                    break
+                    
+                # Limitar preguntas por unidad
+                preguntas = PreguntaRepository.list_all(limit=50, unidad_id=unidad['unidad_id'])
 
                 unidad_info = {
                     'numero': unidad['numero_unidad'],
@@ -575,7 +592,10 @@ def descargar_google_docs(request):
                 }
 
                 for pregunta in preguntas:
-                    opciones = OpcionRepository.list_all(limit=1000, pregunta_id=pregunta['pregunta_id'])
+                    if total_preguntas >= max_preguntas:
+                        break
+                        
+                    opciones = OpcionRepository.list_all(limit=10, pregunta_id=pregunta['pregunta_id'])
 
                     pregunta_info = {
                         'numero': pregunta['numero'],
@@ -590,9 +610,17 @@ def descargar_google_docs(request):
                         })
 
                     unidad_info['preguntas'].append(pregunta_info)
+                    total_preguntas += 1
 
                 if unidad_info['preguntas']:
                     unidades_data.append(unidad_info)
+
+        logger.info(f"Generando documento con {total_preguntas} preguntas en {len(unidades_data)} unidades")
+
+        # Verificar que hay datos para generar
+        if not unidades_data:
+            logger.warning("No se encontraron preguntas para generar el documento")
+            return JsonResponse({'success': False, 'error': 'No se encontraron preguntas para generar el documento'}, status=404)
 
         # Generar documento Word
         doc = generar_documento_word(partida, asignatura, carrera, unidades_data)
@@ -601,7 +629,10 @@ def descargar_google_docs(request):
         response = HttpResponse(
             content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         )
-        response['Content-Disposition'] = f'attachment; filename="preguntas_{partida["descripcion"]}.docx"'
+        
+        # Sanitizar nombre de archivo
+        safe_filename = "".join(c for c in partida["descripcion"] if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        response['Content-Disposition'] = f'attachment; filename="preguntas_{safe_filename}.docx"'
 
         # Guardar documento en memoria
         doc_buffer = io.BytesIO()
@@ -609,10 +640,12 @@ def descargar_google_docs(request):
         doc_buffer.seek(0)
 
         response.write(doc_buffer.getvalue())
+        logger.info("Documento generado exitosamente")
         return response
 
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+        logger.error(f"Error al generar documento: {str(e)}", exc_info=True)
+        return JsonResponse({'success': False, 'error': f'Error interno: {str(e)}'}, status=500)
 
 
 def generar_prompt_texto(partida, asignatura, carrera, programas, unidades_data, unidad_actual=None):
@@ -733,174 +766,237 @@ Incluye un **Resumen de la Unidad** (3–5 bullets) con: temas/subtemas cubierto
 """
     return prompt
 
-
 def generar_documento_word(partida, asignatura, carrera, unidades_data):
     """Generar documento Word con formato simple y limpio"""
     from docx import Document
-    from docx.shared import Inches, Pt
+    from docx.shared import Inches, Pt, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.style import WD_STYLE_TYPE
     import os
+    import logging
 
-    doc = Document()
+    logger = logging.getLogger(__name__)
 
-    # Configurar márgenes
-    sections = doc.sections
-    for section in sections:
-        section.top_margin = Inches(1)
-        section.bottom_margin = Inches(1)
-        section.left_margin = Inches(1)
-        section.right_margin = Inches(1)
+    try:
+        doc = Document()
 
-    # Crear encabezado solo con logo UNEMI
-    def add_header_with_logo(doc_obj):
-        section = doc_obj.sections[0]
-        header = section.header
+        # ---- Estilos propios (evitan azules de Heading 1) ----
+        styles = doc.styles
+        if 'UnidadTitulo' not in styles:
+            unidad_style = styles.add_style('UnidadTitulo', WD_STYLE_TYPE.PARAGRAPH)
+            unidad_style.font.name = 'Calibri'
+            unidad_style.font.size = Pt(16)
+            unidad_style.font.bold = True
+            unidad_style.font.color.rgb = RGBColor(0, 0, 0)
 
-        # Solo agregar el logo en el encabezado
-        logo_path = os.path.join('app', 'static', 'img', 'unemi.png')
-        if os.path.exists(logo_path):
-            try:
-                logo_paragraph = header.paragraphs[0]
-                logo_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-                run = logo_paragraph.add_run()
-                run.add_picture(logo_path, width=Inches(1.5))
-            except Exception:
-                # Si no se puede cargar la imagen, usar texto
+        if 'PreguntaTitulo' not in styles:
+            preg_style = styles.add_style('PreguntaTitulo', WD_STYLE_TYPE.PARAGRAPH)
+            preg_style.font.name = 'Calibri'
+            preg_style.font.size = Pt(12)
+            preg_style.font.bold = True
+            preg_style.font.color.rgb = RGBColor(0, 0, 0)
+
+        # Configurar márgenes
+        sections = doc.sections
+        for section in sections:
+            section.top_margin = Inches(1)
+            section.bottom_margin = Inches(1)
+            section.left_margin = Inches(1)
+            section.right_margin = Inches(1)
+
+        # Crear encabezado solo con logo UNEMI
+        def add_header_with_logo(doc_obj):
+            section = doc_obj.sections[0]
+            header = section.header
+
+            # Solo agregar el logo en el encabezado
+            logo_path = os.path.join('app', 'static', 'img', 'unemi.png')
+            if os.path.exists(logo_path):
+                try:
+                    logo_paragraph = header.paragraphs[0]
+                    logo_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                    run = logo_paragraph.add_run()
+                    run.add_picture(logo_path, width=Inches(1.5))
+                except Exception as e:
+                    logger.warning(f"No se pudo cargar el logo: {e}")
+                    # Si no se puede cargar la imagen, usar texto
+                    logo_paragraph = header.paragraphs[0]
+                    logo_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                    logo_run = logo_paragraph.add_run('UNEMI')
+                    logo_run.bold = True
+                    logo_run.font.size = Pt(16)
+            else:
+                # Usar texto si no hay logo
                 logo_paragraph = header.paragraphs[0]
                 logo_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
                 logo_run = logo_paragraph.add_run('UNEMI')
                 logo_run.bold = True
                 logo_run.font.size = Pt(16)
-        else:
-            # Usar texto si no hay logo
-            logo_paragraph = header.paragraphs[0]
-            logo_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-            logo_run = logo_paragraph.add_run('UNEMI')
-            logo_run.bold = True
-            logo_run.font.size = Pt(16)
 
-    # Agregar encabezado
-    add_header_with_logo(doc)
+        # Agregar encabezado
+        add_header_with_logo(doc)
 
-    # Agregar tabla de información de carrera y asignatura
-    def add_info_table(doc_obj, carrera_obj, asignatura_obj):
-        from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
-        from docx.shared import Cm
+        # Agregar tabla de información de carrera y asignatura
+        def add_info_table(doc_obj, carrera_obj, asignatura_obj):
+            from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL, WD_ROW_HEIGHT_RULE
+            from docx.shared import Cm
 
-        # Crear tabla con 2 filas y 2 columnas
-        table = doc_obj.add_table(rows=2, cols=2)
-        table.style = 'Table Grid'
+            try:
+                # Crear tabla con 2 filas y 2 columnas
+                table = doc_obj.add_table(rows=2, cols=2)
+                table.style = 'Table Grid'
 
-        # Configurar propiedades de la tabla
-        table.alignment = WD_TABLE_ALIGNMENT.LEFT
-        table.left_indent = Cm(0)  # Sangría izquierda: 0 cm
+                # Configurar propiedades de la tabla
+                table.alignment = WD_TABLE_ALIGNMENT.LEFT
+                table.left_indent = Cm(0)  # Sangría izquierda: 0 cm
 
-        # Configurar ancho de columnas (12.356 cm total)
-        table.columns[0].width = Cm(2.0)      # Columna izquierda (CARRERA, ASIGNATURA)
-        table.columns[1].width = Cm(10.356)   # Columna derecha (valores)
+                # Configurar ancho de columnas (12.356 cm total)
+                table.columns[0].width = Cm(2.0)      # Columna izquierda (CARRERA, ASIGNATURA)
+                table.columns[1].width = Cm(10.356)   # Columna derecha (valores)
 
-        # Configurar altura mínima de filas (0.749 cm)
-        for row in table.rows:
-            row.height = Cm(0.749)
-            row.height_rule = 'at_least'  # Altura mínima
+                # Configurar altura mínima de filas (0.749 cm)
+                for row in table.rows:
+                    row.height = Cm(0.749)
+                    row.height_rule = WD_ROW_HEIGHT_RULE.AT_LEAST  # Altura mínima
 
-        # Configurar propiedades de celdas
-        for row in table.rows:
-            for cell in row.cells:
-                # Alineación vertical: Parte superior
-                cell.vertical_alignment = WD_ALIGN_VERTICAL.TOP
+                # Configurar propiedades de celdas
+                for row in table.rows:
+                    for cell in row.cells:
+                        # Alineación vertical: Parte superior
+                        cell.vertical_alignment = WD_ALIGN_VERTICAL.TOP
 
-        # Primera fila - CARRERA
-        row1 = table.rows[0]
-        row1.cells[0].text = 'CARRERA'
-        row1.cells[1].text = carrera_obj['descripcion'] if carrera_obj else 'No especificada'
+                # Primera fila - CARRERA
+                row1 = table.rows[0]
+                row1.cells[0].text = 'CARRERA'
+                carrera_text = carrera_obj.get('descripcion', carrera_obj.get('nombre', '')) if carrera_obj else 'No especificada'
+                row1.cells[1].text = str(carrera_text)[:100]  # Limitar longitud
 
-        # Segunda fila - ASIGNATURA
-        row2 = table.rows[1]
-        row2.cells[0].text = 'ASIGNATURA'
-        row2.cells[1].text = asignatura_obj['descripcion']
+                # Segunda fila - ASIGNATURA
+                row2 = table.rows[1]
+                row2.cells[0].text = 'ASIGNATURA'
+                asignatura_text = asignatura_obj.get('descripcion', asignatura_obj.get('nombre', '')) if asignatura_obj else 'No especificada'
+                row2.cells[1].text = str(asignatura_text)[:100]  # Limitar longitud
 
-        # Aplicar formato a todas las celdas
-        for row in table.rows:
-            for cell in row.cells:
-                for paragraph in cell.paragraphs:
-                    for run in paragraph.runs:
-                        run.bold = True
-                        run.font.size = Pt(11)
-                    paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                # Aplicar formato a todas las celdas
+                for row in table.rows:
+                    for cell in row.cells:
+                        for paragraph in cell.paragraphs:
+                            for run in paragraph.runs:
+                                run.bold = True
+                                run.font.size = Pt(11)
+                                run.font.color.rgb = RGBColor(0, 0, 0)
+                            paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
-        # Agregar espacio después de la tabla
-        doc_obj.add_paragraph()
+                # Agregar espacio después de la tabla
+                doc_obj.add_paragraph()
 
-    # Agregar tabla de información
-    add_info_table(doc, carrera, asignatura)
+            except Exception as e:
+                logger.error(f"Error al crear tabla de información: {e}")
+                # Agregar información simple si falla la tabla
+                doc_obj.add_paragraph('Información del Documento', style='UnidadTitulo')
+                carrera_text = carrera_obj.get('descripcion', carrera_obj.get('nombre', '')) if carrera_obj else 'No especificada'
+                p1 = doc_obj.add_paragraph(f"Carrera: {str(carrera_text)[:100]}")
+                p1.runs[0].font.color.rgb = RGBColor(0, 0, 0)
+                asignatura_text = asignatura_obj.get('descripcion', asignatura_obj.get('nombre', '')) if asignatura_obj else 'No especificada'
+                p2 = doc_obj.add_paragraph(f"Asignatura: {str(asignatura_text)[:100]}")
+                p2.runs[0].font.color.rgb = RGBColor(0, 0, 0)
+                doc_obj.add_paragraph()
 
-    # Contador global de preguntas para numeración continua
-    contador_pregunta_global = 1
+        # Agregar tabla de información
+        add_info_table(doc, carrera, asignatura)
 
-    # Preguntas por unidad
-    for unidad in unidades_data:
-        # Título de la unidad (sin color)
-        unidad_heading = doc.add_heading(f'UNIDAD {unidad["numero"]}: {unidad["descripcion"]}', level=1)
-        unidad_heading.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        # Quitar cualquier formato de color
-        for run in unidad_heading.runs:
-            run.font.color.rgb = None
+        # Contador global de preguntas para numeración continua
+        contador_pregunta_global = 1
 
-        # Preguntas de la unidad
-        for pregunta in unidad['preguntas']:
-            # Usar numeración continua global
-            pregunta_paragraph = doc.add_paragraph()
-            pregunta_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-            pregunta_run = pregunta_paragraph.add_run(f'Pregunta {contador_pregunta_global}')
-            pregunta_run.bold = True
-            pregunta_run.font.size = Pt(12)
+        # Preguntas por unidad
+        for unidad in unidades_data:
+            try:
+                # Título de la unidad (sin color de tema)
+                unidad_desc = str(unidad.get('descripcion', ''))[:200]  # Limitar longitud
+                unidad_heading = doc.add_paragraph(
+                    f'UNIDAD {unidad.get("numero", "?")}: {unidad_desc}',
+                    style='UnidadTitulo'
+                )
+                unidad_heading.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
-            # Enunciado de la pregunta
-            enunciado_paragraph = doc.add_paragraph()
-            enunciado_paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-            enunciado_run = enunciado_paragraph.add_run(pregunta['enunciado'])
-            enunciado_run.font.size = Pt(11)
+                # Preguntas de la unidad
+                for pregunta in unidad.get('preguntas', []):
+                    try:
+                        # Título de la pregunta con estilo propio
+                        pregunta_paragraph = doc.add_paragraph(
+                            f'Pregunta {contador_pregunta_global}',
+                            style='PreguntaTitulo'
+                        )
+                        pregunta_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
-            # Opciones
-            opciones_heading = doc.add_paragraph()
-            opciones_heading.add_run('Opciones:')
-            opciones_heading.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                        # Enunciado de la pregunta
+                        enunciado_paragraph = doc.add_paragraph()
+                        enunciado_paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                        enunciado_text = str(pregunta.get('enunciado', ''))[:500]  # Limitar longitud
+                        enunciado_run = enunciado_paragraph.add_run(enunciado_text)
+                        enunciado_run.font.size = Pt(11)
+                        enunciado_run.font.color.rgb = RGBColor(0, 0, 0)
 
-            for i, opcion in enumerate(pregunta['opciones'], 1):
-                opcion_paragraph = doc.add_paragraph()
-                opcion_paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-                opcion_paragraph.paragraph_format.left_indent = Inches(0.3)
+                        # Opciones
+                        opciones_heading = doc.add_paragraph()
+                        opciones_heading_run = opciones_heading.add_run('Opciones:')
+                        opciones_heading.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                        opciones_heading_run.font.color.rgb = RGBColor(0, 0, 0)
 
-                letra = chr(96 + i)  # a, b, c, d
-                opcion_text = f'{letra}) {opcion["texto"]}'
-                opcion_run = opcion_paragraph.add_run(opcion_text)
-                opcion_run.font.size = Pt(11)
+                        opciones = pregunta.get('opciones', [])
+                        for i, opcion in enumerate(opciones[:10], 1):  # Limitar a 10 opciones
+                            try:
+                                opcion_paragraph = doc.add_paragraph()
+                                opcion_paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                                opcion_paragraph.paragraph_format.left_indent = Inches(0.3)
 
-                if opcion['es_correcta']:
-                    opcion_run.bold = True
+                                letra = chr(96 + i)  # a, b, c, d...
+                                opcion_text = str(opcion.get('texto', ''))[:300]  # Limitar longitud
+                                opcion_text = f'{letra}) {opcion_text}'
+                                opcion_run = opcion_paragraph.add_run(opcion_text)
+                                opcion_run.font.size = Pt(11)
+                                opcion_run.font.color.rgb = RGBColor(0, 0, 0)
+                                # Importante: NO poner en negrita la opción correcta
+                            except Exception as e:
+                                logger.warning(f"Error al procesar opción {i}: {e}")
+                                continue
 
-            # Respuesta correcta
-            respuesta_paragraph = doc.add_paragraph()
-            respuesta_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-            respuesta_paragraph.paragraph_format.left_indent = Inches(0.3)
+                        # Respuesta correcta (solo aquí se resalta si quieres mantenerlo)
+                        respuesta_paragraph = doc.add_paragraph()
+                        respuesta_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                        respuesta_paragraph.paragraph_format.left_indent = Inches(0.3)
 
-            # Encontrar la respuesta correcta
-            for i, opcion in enumerate(pregunta['opciones'], 1):
-                if opcion['es_correcta']:
-                    letra_correcta = chr(96 + i)
-                    respuesta_run = respuesta_paragraph.add_run(f'Respuesta correcta: {letra_correcta}')
-                    respuesta_run.bold = True
-                    respuesta_run.font.size = Pt(11)
-                    break
+                        # Encontrar la respuesta correcta
+                        for i, opcion in enumerate(opciones[:10], 1):
+                            if opcion.get('es_correcta', False):
+                                letra_correcta = chr(96 + i)
+                                respuesta_run = respuesta_paragraph.add_run(f'Respuesta correcta: {letra_correcta}')
+                                respuesta_run.bold = True
+                                respuesta_run.font.size = Pt(11)
+                                respuesta_run.font.color.rgb = RGBColor(0, 0, 0)
+                                break
 
-            # Incrementar contador global
-            contador_pregunta_global += 1
+                        # Incrementar contador global
+                        contador_pregunta_global += 1
 
-            # Espacio entre preguntas
-            doc.add_paragraph()
+                        # Espacio entre preguntas
+                        doc.add_paragraph()
 
-    return doc
+                    except Exception as e:
+                        logger.warning(f"Error al procesar pregunta {contador_pregunta_global}: {e}")
+                        contador_pregunta_global += 1
+                        continue
+
+            except Exception as e:
+                logger.warning(f"Error al procesar unidad {unidad.get('numero', '?')}: {e}")
+                continue
+
+        logger.info(f"Documento generado con {contador_pregunta_global - 1} preguntas")
+        return doc
+
+    except Exception as e:
+        logger.error(f"Error crítico al generar documento: {e}", exc_info=True)
+        raise e
 
 
 # ============================================================================
