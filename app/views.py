@@ -706,12 +706,6 @@ ESTRUCTURA DE CADA PREGUNTA (formato específico)
 - **Opciones (A–D):** cuatro opciones, **solo una correcta**. Distractores plausibles, sin trucos rebuscados.
 - **Respuesta correcta:** letra de la opción correcta.
 - **Explicación (3-4 líneas):** razón breve de por qué es correcta y por qué las otras no.
-- **Metadatos por ítem (cortos):**
-- Carrera: {carrera['descripcion'] if carrera else 'No especificada'} · Programa: {asignatura['descripcion']}
-- Asignatura: {asignatura['descripcion']}
-- Unidad: [Usar los datos reales de las unidades listadas abajo]
-- Tema/Subtema: [EXTRAER DEL CONTEXTO DEL PLAN - NO INVENTAR]
-  - Dificultad: [[baja|media]]
 
 REQUISITOS DE CALIDAD (EN TODO EL SET)
 - Lenguaje claro y didáctico; evita tecnicismos innecesarios.
@@ -724,8 +718,17 @@ REQUISITOS DE CALIDAD (EN TODO EL SET)
 - **Una sola** opción correcta; no repetir la respuesta con sinónimos en otras opciones.
 - Referenciar explícitamente la **Unidad** y el **Tema/Subtema** en cada ítem.
 
+INSTRUCCIONES ESPECÍFICAS PARA TEMAS/SUBTEMAS:
+1. Revisa el "Contexto del plan" mostrado arriba
+2. Identifica los temas y subtemas listados para cada unidad
+3. Para cada pregunta, usa UNO de esos temas/subtemas específicos
+4. NO inventes temas que no estén en el contexto
+5. Cada unidad debe tener preguntas basadas en SUS temas específicos del contexto
+
+
+
 FORMATO DE SALIDA (formato específico, uno por pregunta)
-Pregunta [[#]]
+Pregunta [#]
 [[Narración del caso - 3-4 líneas]]
 [[Pregunta directa - 2 línea]]
 Opciones:
@@ -736,39 +739,9 @@ d) [[...]]
 Respuesta correcta: [[letra]]
 Explicación: [[2-3 líneas]]
 
-Metadatos:
-- Unidad: [Usar los datos reales de las unidades listadas abajo]
-- Tema/Subtema: [Extraer del Contexto del plan]
-- Dificultad: [[baja|media]]
-
-DATOS REALES DE LAS UNIDADES DISPONIBLES:
-"""
-
-    # Agregar datos reales de las unidades
-    for unidad in unidades_data:
-        prompt += f"- Unidad {unidad['numero']}: {unidad['descripcion']}\n"
-
-    prompt += """
-
-INSTRUCCIONES ESPECÍFICAS PARA TEMAS/SUBTEMAS:
-1. Revisa el "Contexto del plan" mostrado arriba
-2. Identifica los temas y subtemas listados para cada unidad
-3. Para cada pregunta, usa UNO de esos temas/subtemas específicos
-4. NO inventes temas que no estén en el contexto
-5. Cada unidad debe tener preguntas basadas en SUS temas específicos del contexto
-
-EJEMPLO DE METADATOS CORRECTOS (usar los datos reales de arriba):
-- Unidad: 1 — Generalidades de la Ingeniería Genética
-- Unidad: 2 — Técnicas de Clonación Molecular
-- Unidad: 3 — Aplicaciones en Biotecnología
-- etc.
-
-AL FINAL (por unidad)
-Incluye un **Resumen de la Unidad** (3–5 bullets) con: temas/subtemas cubiertos (según el Contexto del plan), distribución baja–media, y variedad básica de escenarios.
-
----
 
 """
+
     return prompt
 
 def generar_documento_word(partida, asignatura, carrera, unidades_data):
