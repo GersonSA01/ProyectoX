@@ -1,28 +1,32 @@
 from typing import Any, Dict, List, Optional, Tuple
 
-from .supabase_client import get_supabase_client
+from .supabase_client import get_supabase_client, retry_on_network_error
 
 
 class CarreraRepository:
     @staticmethod
+    @retry_on_network_error()
     def list_all(limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         client = get_supabase_client()
         res = client.table("carrera").select("carrera_id, descripcion").limit(limit).offset(offset).execute()
         return res.data or []
 
     @staticmethod
+    @retry_on_network_error()
     def get_by_id(carrera_id: int) -> Optional[Dict[str, Any]]:
         client = get_supabase_client()
         res = client.table("carrera").select("carrera_id, descripcion").eq("carrera_id", carrera_id).single().execute()
         return res.data
 
     @staticmethod
+    @retry_on_network_error()
     def create(descripcion: str) -> Dict[str, Any]:
         client = get_supabase_client()
         res = client.table("carrera").insert({"descripcion": descripcion}).execute()
         return res.data[0] if res.data else None
 
     @staticmethod
+    @retry_on_network_error()
     def update(carrera_id: int, descripcion: Optional[str] = None) -> Dict[str, Any]:
         client = get_supabase_client()
         patch: Dict[str, Any] = {}
@@ -32,6 +36,7 @@ class CarreraRepository:
         return res.data[0] if res.data else None
 
     @staticmethod
+    @retry_on_network_error()
     def delete(carrera_id: int) -> Tuple[int, Optional[Dict[str, Any]]]:
         client = get_supabase_client()
         res = client.table("carrera").delete().eq("carrera_id", carrera_id).execute()
@@ -40,6 +45,7 @@ class CarreraRepository:
 
 class AsignaturaRepository:
     @staticmethod
+    @retry_on_network_error()
     def list_all(limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         client = get_supabase_client()
         query = (
@@ -51,6 +57,7 @@ class AsignaturaRepository:
         return res.data or []
 
     @staticmethod
+    @retry_on_network_error()
     def get_by_id(asignatura_id: int) -> Optional[Dict[str, Any]]:
         client = get_supabase_client()
         res = (
@@ -63,12 +70,14 @@ class AsignaturaRepository:
         return res.data
 
     @staticmethod
+    @retry_on_network_error()
     def find_by_descripcion_ilike(descripcion: str) -> List[Dict[str, Any]]:
         client = get_supabase_client()
         res = client.table("asignatura").select("*").ilike("descripcion", descripcion).execute()
         return res.data or []
 
     @staticmethod
+    @retry_on_network_error()
     def create(descripcion: str, carrera_id: Optional[int]) -> Dict[str, Any]:
         client = get_supabase_client()
         payload = {"descripcion": descripcion, "carrera_id": carrera_id}
@@ -76,6 +85,7 @@ class AsignaturaRepository:
         return res.data[0] if res.data else None
 
     @staticmethod
+    @retry_on_network_error()
     def update(asignatura_id: int, descripcion: Optional[str] = None, carrera_id: Optional[int] = None) -> Dict[str, Any]:
         client = get_supabase_client()
         patch: Dict[str, Any] = {}
@@ -92,6 +102,7 @@ class AsignaturaRepository:
         return res.data[0] if res.data else None
 
     @staticmethod
+    @retry_on_network_error()
     def delete(asignatura_id: int) -> Tuple[int, Optional[Dict[str, Any]]]:
         client = get_supabase_client()
         res = (
@@ -105,18 +116,21 @@ class AsignaturaRepository:
 
 class ProgramaAnaliticoRepository:
     @staticmethod
+    @retry_on_network_error()
     def list_all(limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         client = get_supabase_client()
         res = client.table("programaanalitico").select("linea_educativa_id, titulo, contexto, asignatura_id").limit(limit).offset(offset).execute()
         return res.data or []
 
     @staticmethod
+    @retry_on_network_error()
     def get_by_id(linea_educativa_id: int) -> Optional[Dict[str, Any]]:
         client = get_supabase_client()
         res = client.table("programaanalitico").select("*").eq("linea_educativa_id", linea_educativa_id).single().execute()
         return res.data
 
     @staticmethod
+    @retry_on_network_error()
     def list_by_asignatura(asignatura_id: int, limit: int = 1000) -> List[Dict[str, Any]]:
         client = get_supabase_client()
         res = (
@@ -129,6 +143,7 @@ class ProgramaAnaliticoRepository:
         return res.data or []
 
     @staticmethod
+    @retry_on_network_error()
     def create(titulo: str, contexto: str, asignatura_id: int) -> Dict[str, Any]:
         client = get_supabase_client()
         payload = {"titulo": titulo, "contexto": contexto, "asignatura_id": asignatura_id}
@@ -136,6 +151,7 @@ class ProgramaAnaliticoRepository:
         return res.data[0] if res.data else None
 
     @staticmethod
+    @retry_on_network_error()
     def update(linea_educativa_id: int, titulo: Optional[str] = None, contexto: Optional[str] = None) -> Dict[str, Any]:
         client = get_supabase_client()
         patch: Dict[str, Any] = {}
@@ -147,6 +163,7 @@ class ProgramaAnaliticoRepository:
         return res.data[0] if res.data else None
 
     @staticmethod
+    @retry_on_network_error()
     def delete(linea_educativa_id: int) -> Tuple[int, Optional[Dict[str, Any]]]:
         client = get_supabase_client()
         res = client.table("programaanalitico").delete().eq("linea_educativa_id", linea_educativa_id).execute()
@@ -155,6 +172,7 @@ class ProgramaAnaliticoRepository:
 
 class UnidadRepository:
     @staticmethod
+    @retry_on_network_error()
     def list_all(limit: int = 100, offset: int = 0, programa_analitico_id: Optional[int] = None) -> List[Dict[str, Any]]:
         client = get_supabase_client()
         query = client.table("unidad").select("unidad_id, numero_unidad, descripcion, num_preguntas, programa_analitico_id")
@@ -164,12 +182,14 @@ class UnidadRepository:
         return res.data or []
 
     @staticmethod
+    @retry_on_network_error()
     def get_by_id(unidad_id: int) -> Optional[Dict[str, Any]]:
         client = get_supabase_client()
         res = client.table("unidad").select("*").eq("unidad_id", unidad_id).single().execute()
         return res.data
 
     @staticmethod
+    @retry_on_network_error()
     def create(numero_unidad: int, descripcion: str, num_preguntas: int, programa_analitico_id: int) -> Dict[str, Any]:
         client = get_supabase_client()
         payload = {
@@ -182,6 +202,7 @@ class UnidadRepository:
         return res.data[0] if res.data else None
 
     @staticmethod
+    @retry_on_network_error()
     def update(unidad_id: int, descripcion: Optional[str] = None, numero_unidad: Optional[int] = None, num_preguntas: Optional[int] = None) -> Dict[str, Any]:
         client = get_supabase_client()
         patch: Dict[str, Any] = {}
@@ -195,6 +216,7 @@ class UnidadRepository:
         return res.data[0] if res.data else None
 
     @staticmethod
+    @retry_on_network_error()
     def delete(unidad_id: int) -> Tuple[int, Optional[Dict[str, Any]]]:
         client = get_supabase_client()
         res = client.table("unidad").delete().eq("unidad_id", unidad_id).execute()
@@ -203,6 +225,7 @@ class UnidadRepository:
 
 class PreguntaRepository:
     @staticmethod
+    @retry_on_network_error()
     def list_all(limit: int = 100, offset: int = 0, unidad_id: Optional[int] = None) -> List[Dict[str, Any]]:
         client = get_supabase_client()
         query = client.table("pregunta").select("pregunta_id, enunciado, explicacion, numero, unidad_id")
@@ -212,6 +235,7 @@ class PreguntaRepository:
         return res.data or []
 
     @staticmethod
+    @retry_on_network_error()
     def create(enunciado: str, numero: int, unidad_id: int, explicacion: Optional[str] = None) -> Dict[str, Any]:
         client = get_supabase_client()
         payload = {"enunciado": enunciado, "numero": numero, "unidad_id": unidad_id}
@@ -221,6 +245,7 @@ class PreguntaRepository:
         return res.data[0] if res.data else None
 
     @staticmethod
+    @retry_on_network_error()
     def update(pregunta_id: int, enunciado: Optional[str] = None, numero: Optional[int] = None, explicacion: Optional[str] = None) -> Dict[str, Any]:
         client = get_supabase_client()
         patch: Dict[str, Any] = {}
@@ -234,6 +259,7 @@ class PreguntaRepository:
         return res.data[0] if res.data else None
 
     @staticmethod
+    @retry_on_network_error()
     def delete(pregunta_id: int) -> Tuple[int, Optional[Dict[str, Any]]]:
         client = get_supabase_client()
         res = client.table("pregunta").delete().eq("pregunta_id", pregunta_id).execute()
@@ -242,6 +268,7 @@ class PreguntaRepository:
 
 class OpcionRepository:
     @staticmethod
+    @retry_on_network_error()
     def list_all(limit: int = 100, offset: int = 0, pregunta_id: Optional[int] = None) -> List[Dict[str, Any]]:
         client = get_supabase_client()
         query = client.table("opcion").select("opcion_id, opcion, media_url, es_correcta, pregunta_id")
@@ -251,6 +278,7 @@ class OpcionRepository:
         return res.data or []
 
     @staticmethod
+    @retry_on_network_error()
     def create(opcion: str, es_correcta: bool, pregunta_id: int, media_url: Optional[str] = None) -> Dict[str, Any]:
         client = get_supabase_client()
         payload: Dict[str, Any] = {"opcion": opcion, "es_correcta": es_correcta, "pregunta_id": pregunta_id}
@@ -260,6 +288,7 @@ class OpcionRepository:
         return res.data[0] if res.data else None
 
     @staticmethod
+    @retry_on_network_error()
     def update(opcion_id: int, opcion: Optional[str] = None, es_correcta: Optional[bool] = None, media_url: Optional[str] = None) -> Dict[str, Any]:
         client = get_supabase_client()
         patch: Dict[str, Any] = {}
@@ -273,6 +302,7 @@ class OpcionRepository:
         return res.data[0] if res.data else None
 
     @staticmethod
+    @retry_on_network_error()
     def delete(opcion_id: int) -> Tuple[int, Optional[Dict[str, Any]]]:
         client = get_supabase_client()
         res = client.table("opcion").delete().eq("opcion_id", opcion_id).execute()
@@ -281,6 +311,7 @@ class OpcionRepository:
 
 class PartidaRepository:
     @staticmethod
+    @retry_on_network_error()
     def list_all(limit: int = 100, offset: int = 0, asignatura_id: Optional[int] = None) -> List[Dict[str, Any]]:
         client = get_supabase_client()
         query = client.table("partida").select("partida_id, descripcion, asignatura_id")
@@ -290,6 +321,7 @@ class PartidaRepository:
         return res.data or []
 
     @staticmethod
+    @retry_on_network_error()
     def create(descripcion: str, asignatura_id: int) -> Dict[str, Any]:
         client = get_supabase_client()
         payload = {"descripcion": descripcion, "asignatura_id": asignatura_id}
@@ -297,12 +329,14 @@ class PartidaRepository:
         return res.data[0] if res.data else None
 
     @staticmethod
+    @retry_on_network_error()
     def get_by_id(partida_id: int) -> Optional[Dict[str, Any]]:
         client = get_supabase_client()
         res = client.table("partida").select("*").eq("partida_id", partida_id).single().execute()
         return res.data
 
     @staticmethod
+    @retry_on_network_error()
     def update(partida_id: int, descripcion: Optional[str] = None) -> Dict[str, Any]:
         client = get_supabase_client()
         patch: Dict[str, Any] = {}
@@ -312,6 +346,7 @@ class PartidaRepository:
         return res.data[0] if res.data else None
 
     @staticmethod
+    @retry_on_network_error()
     def delete(partida_id: int) -> Tuple[int, Optional[Dict[str, Any]]]:
         client = get_supabase_client()
         res = client.table("partida").delete().eq("partida_id", partida_id).execute()

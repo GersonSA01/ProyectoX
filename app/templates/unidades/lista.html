@@ -55,6 +55,7 @@
                         <tr>
                             <th>Unidad</th>
                             <th>Descripción</th>
+                            <th>Partida</th>
                             <th>Plan Analítico</th>
                             <th>Carrera</th>
                         </tr>
@@ -86,6 +87,13 @@
                                         </div>
                                     </div>
                                 </div>
+                            </td>
+                            <td>
+                                {% if unidad.partida %}
+                                    <span class="badge bg-info">{{ unidad.partida.descripcion }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Sin partida</span>
+                                {% endif %}
                             </td>
                             <td>{{ unidad.programa_analitico.titulo }}</td>
                             <td>

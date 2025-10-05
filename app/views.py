@@ -72,52 +72,86 @@ class UnidadListView(ListView):
     paginate_by = 50
 
     def get_queryset(self):
-        # Obtener filtro de la URL
-        programa_analitico_id = self.request.GET.get('programa_analitico')
+        try:
+            # Obtener filtro de la URL
+            programa_analitico_id = self.request.GET.get('programa_analitico')
 
-        # Obtener unidades según el filtro
-        if programa_analitico_id:
-            unidades = UnidadRepository.list_all(
-                limit=1000,
-                programa_analitico_id=int(programa_analitico_id)
-            )
-        else:
-            unidades = UnidadRepository.list_all(limit=1000)
+            # Obtener unidades según el filtro
+            if programa_analitico_id:
+                unidades = UnidadRepository.list_all(
+                    limit=1000,
+                    programa_analitico_id=int(programa_analitico_id)
+                )
+            else:
+                unidades = UnidadRepository.list_all(limit=1000)
 
-        # Enriquecer datos de cada unidad
-        for unidad in unidades:
-            # Obtener programa analítico
-            programa = ProgramaAnaliticoRepository.get_by_id(unidad['programa_analitico_id'])
-            if programa:
-                unidad['programa_analitico'] = programa
+            # Enriquecer datos de cada unidad
+            for unidad in unidades:
+                try:
+                    # Obtener programa analítico
+                    programa = ProgramaAnaliticoRepository.get_by_id(unidad['programa_analitico_id'])
+                    if programa:
+                        unidad['programa_analitico'] = programa
 
-                # Obtener asignatura
-                asignatura = AsignaturaRepository.get_by_id(programa['asignatura_id'])
-                if asignatura:
-                    unidad['programa_analitico']['asignatura'] = asignatura
+                        # Obtener asignatura
+                        asignatura = AsignaturaRepository.get_by_id(programa['asignatura_id'])
+                        if asignatura:
+                            unidad['programa_analitico']['asignatura'] = asignatura
 
-                    # Obtener carrera si existe
-                    if asignatura.get('carrera_id'):
-                        carrera = CarreraRepository.get_by_id(asignatura['carrera_id'])
-                        if carrera:
-                            unidad['programa_analitico']['asignatura']['carrera'] = carrera
+                            # Obtener carrera si existe
+                            if asignatura.get('carrera_id'):
+                                carrera = CarreraRepository.get_by_id(asignatura['carrera_id'])
+                                if carrera:
+                                    unidad['programa_analitico']['asignatura']['carrera'] = carrera
 
-        return unidades
+                            # Obtener partida asociada a la asignatura
+                            partidas = PartidaRepository.list_all(limit=1000, asignatura_id=asignatura['asignatura_id'])
+                            if partidas:
+                                # Tomar la primera partida encontrada (asumiendo que hay una por asignatura)
+                                unidad['partida'] = partidas[0]
+                            else:
+                                unidad['partida'] = None
+                except Exception as e:
+                    # Si falla el enriquecimiento de una unidad, continuar con las demás
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Error al enriquecer unidad {unidad.get('unidad_id', 'unknown')}: {e}")
+                    continue
+
+            return unidades
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error al obtener unidades: {e}")
+            # Retornar lista vacía en caso de error
+            return []
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # Datos para el filtro de programas analíticos
-        context['programas_analiticos'] = ProgramaAnaliticoRepository.list_all(limit=1000)
+        try:
+            # Datos para el filtro de programas analíticos
+            context['programas_analiticos'] = ProgramaAnaliticoRepository.list_all(limit=1000)
 
-        # Enriquecer programas con asignatura y carrera
-        for programa in context['programas_analiticos']:
-            asignatura = AsignaturaRepository.get_by_id(programa['asignatura_id'])
-            if asignatura:
-                programa['asignatura'] = asignatura
-                if asignatura.get('carrera_id'):
-                    carrera = CarreraRepository.get_by_id(asignatura['carrera_id'])
-                    if carrera:
-                        programa['asignatura']['carrera'] = carrera
+            # Enriquecer programas con asignatura y carrera
+            for programa in context['programas_analiticos']:
+                try:
+                    asignatura = AsignaturaRepository.get_by_id(programa['asignatura_id'])
+                    if asignatura:
+                        programa['asignatura'] = asignatura
+                        if asignatura.get('carrera_id'):
+                            carrera = CarreraRepository.get_by_id(asignatura['carrera_id'])
+                            if carrera:
+                                programa['asignatura']['carrera'] = carrera
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Error al enriquecer programa {programa.get('linea_educativa_id', 'unknown')}: {e}")
+                    continue
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error al obtener programas analíticos: {e}")
+            context['programas_analiticos'] = []
 
         return context
 
@@ -129,61 +163,106 @@ class PreguntaListView(ListView):
     paginate_by = 50
 
     def get_queryset(self):
-        partida_id = self.request.GET.get('partida')
-        if not partida_id:
-            return []
+        try:
+            partida_id = self.request.GET.get('partida')
+            if not partida_id:
+                return []
 
-        partida = PartidaRepository.get_by_id(int(partida_id))
-        if not partida:
-            return []
+            partida = PartidaRepository.get_by_id(int(partida_id))
+            if not partida:
+                return []
 
-        asignatura = AsignaturaRepository.get_by_id(partida['asignatura_id'])
-        if not asignatura:
-            return []
+            asignatura = AsignaturaRepository.get_by_id(partida['asignatura_id'])
+            if not asignatura:
+                return []
 
-        programas = ProgramaAnaliticoRepository.list_by_asignatura(
-            asignatura_id=asignatura['asignatura_id']
-        )
-
-        programa_analitico_id = self.request.GET.get('programa_analitico')
-        if programa_analitico_id:
-            programas = [p for p in programas if p['linea_educativa_id'] == int(programa_analitico_id)]
-
-        todas_unidades = []
-        for programa in programas:
-            unidades = UnidadRepository.list_all(
-                limit=1000,
-                programa_analitico_id=programa['linea_educativa_id']
+            programas = ProgramaAnaliticoRepository.list_by_asignatura(
+                asignatura_id=asignatura['asignatura_id']
             )
-            todas_unidades.extend(unidades)
 
-        unidad_id = self.request.GET.get('unidad')
-        if unidad_id:
-            todas_unidades = [u for u in todas_unidades if u['unidad_id'] == int(unidad_id)]
+            programa_analitico_id = self.request.GET.get('programa_analitico')
+            if programa_analitico_id:
+                programas = [p for p in programas if p['linea_educativa_id'] == int(programa_analitico_id)]
 
-        todas_preguntas = []
-        for unidad in todas_unidades:
-            preguntas = PreguntaRepository.list_all(limit=1000, unidad_id=unidad['unidad_id'])
-            for pregunta in preguntas:
-                pregunta['unidad'] = unidad
-                programa_correspondiente = next(
-                    (p for p in programas if p['linea_educativa_id'] == unidad['programa_analitico_id']),
-                    None
-                )
-                if programa_correspondiente:
-                    pregunta['programa_analitico'] = programa_correspondiente
-                    pregunta['asignatura'] = asignatura
-                pregunta['opciones'] = OpcionRepository.list_all(limit=1000, pregunta_id=pregunta['pregunta_id'])
-            todas_preguntas.extend(preguntas)
+            todas_unidades = []
+            for programa in programas:
+                try:
+                    unidades = UnidadRepository.list_all(
+                        limit=1000,
+                        programa_analitico_id=programa['linea_educativa_id']
+                    )
+                    todas_unidades.extend(unidades)
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Error al obtener unidades para programa {programa.get('linea_educativa_id', 'unknown')}: {e}")
+                    continue
 
-        todas_preguntas.sort(key=lambda x: int(x.get('numero', 0)))
-        return todas_preguntas
+            unidad_id = self.request.GET.get('unidad')
+            if unidad_id:
+                todas_unidades = [u for u in todas_unidades if u['unidad_id'] == int(unidad_id)]
+
+            todas_preguntas = []
+            for unidad in todas_unidades:
+                try:
+                    preguntas = PreguntaRepository.list_all(limit=1000, unidad_id=unidad['unidad_id'])
+                    for pregunta in preguntas:
+                        pregunta['unidad'] = unidad
+                        programa_correspondiente = next(
+                            (p for p in programas if p['linea_educativa_id'] == unidad['programa_analitico_id']),
+                            None
+                        )
+                        if programa_correspondiente:
+                            pregunta['programa_analitico'] = programa_correspondiente
+                            pregunta['asignatura'] = asignatura
+                        try:
+                            pregunta['opciones'] = OpcionRepository.list_all(limit=1000, pregunta_id=pregunta['pregunta_id'])
+                        except Exception as e:
+                            import logging
+                            logger = logging.getLogger(__name__)
+                            logger.warning(f"Error al obtener opciones para pregunta {pregunta.get('pregunta_id', 'unknown')}: {e}")
+                            pregunta['opciones'] = []
+                    todas_preguntas.extend(preguntas)
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Error al obtener preguntas para unidad {unidad.get('unidad_id', 'unknown')}: {e}")
+                    continue
+
+            todas_preguntas.sort(key=lambda x: int(x.get('numero', 0)))
+            return todas_preguntas
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error al obtener preguntas: {e}")
+            return []
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['partidas'] = PartidaRepository.list_all(limit=1000)
-        context['unidades'] = UnidadRepository.list_all(limit=1000)
-        context['programas_analiticos'] = ProgramaAnaliticoRepository.list_all(limit=1000)
+        try:
+            context['partidas'] = PartidaRepository.list_all(limit=1000)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error al obtener partidas: {e}")
+            context['partidas'] = []
+        
+        try:
+            context['unidades'] = UnidadRepository.list_all(limit=1000)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error al obtener unidades: {e}")
+            context['unidades'] = []
+        
+        try:
+            context['programas_analiticos'] = ProgramaAnaliticoRepository.list_all(limit=1000)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error al obtener programas analíticos: {e}")
+            context['programas_analiticos'] = []
+        
         return context
 
 
@@ -653,30 +732,187 @@ def descargar_google_docs(request):
         return JsonResponse({'success': False, 'error': f'Error interno: {str(e)}'}, status=500)
 
 
+def extraer_contexto_por_unidad(contexto_completo, numero_unidad):
+    """
+    Extrae el contexto específico de una unidad del contexto completo del programa analítico.
+    Maneja el formato real: Contexto general + Unidades con temas y subtemas.
+    """
+    if not contexto_completo or not numero_unidad:
+        return contexto_completo
+    
+    # Convertir a string y limpiar
+    contexto = str(contexto_completo).strip()
+    numero_unidad = int(numero_unidad)
+    
+    # Buscar la sección "Unidades, temas y subtemas"
+    seccion_unidades = "Unidades, temas y subtemas"
+    pos_seccion = contexto.lower().find(seccion_unidades.lower())
+    
+    if pos_seccion == -1:
+        # Si no encuentra la sección, buscar directamente la unidad
+        return _buscar_unidad_directa(contexto, numero_unidad)
+    
+    # Extraer desde la sección de unidades hasta el final
+    contexto_unidades = contexto[pos_seccion:].strip()
+    
+    # Buscar la unidad específica
+    patrones_unidad = [
+        f"Unidad {numero_unidad}:",
+        f"Unidad {numero_unidad} ",
+    ]
+    
+    inicio_unidad = -1
+    for patron in patrones_unidad:
+        pos = contexto_unidades.lower().find(patron.lower())
+        if pos != -1:
+            inicio_unidad = pos
+            break
+    
+    if inicio_unidad == -1:
+        # Si no encuentra la unidad específica, devolver todo el contexto
+        return contexto
+    
+    # Buscar el final de la unidad (siguiente unidad o final del texto)
+    siguiente_unidad = numero_unidad + 1
+    fin_unidad = len(contexto_unidades)
+    
+    # Buscar la siguiente unidad
+    patrones_siguiente = [
+        f"Unidad {siguiente_unidad}:",
+        f"Unidad {siguiente_unidad} ",
+    ]
+    
+    for patron in patrones_siguiente:
+        pos = contexto_unidades.lower().find(patron.lower(), inicio_unidad + 1)
+        if pos != -1:
+            fin_unidad = pos
+            break
+    
+    # Extraer el contexto de la unidad
+    contexto_unidad = contexto_unidades[inicio_unidad:fin_unidad].strip()
+    
+    # Si el contexto extraído es muy corto, devolver el contexto completo
+    if len(contexto_unidad) < 50:
+        return contexto
+    
+    # Construir el contexto completo: contexto general + unidad específica
+    contexto_general = contexto[:pos_seccion].strip()
+    
+    # Buscar el título de la sección de unidades
+    titulo_seccion = "Unidades, temas y subtemas (tal como en el programa)"
+    if titulo_seccion.lower() in contexto.lower():
+        # Incluir el título de la sección
+        resultado = f"{contexto_general}\n\n{titulo_seccion}\n\n{contexto_unidad}"
+    else:
+        resultado = f"{contexto_general}\n\n{seccion_unidades}\n\n{contexto_unidad}"
+    
+    return resultado
+
+
+def _buscar_unidad_directa(contexto, numero_unidad):
+    """
+    Busca la unidad directamente en el contexto sin sección específica.
+    """
+    patrones_unidad = [
+        f"Unidad {numero_unidad}:",
+        f"Unidad {numero_unidad} ",
+        f"Tema {numero_unidad}:",
+        f"Tema {numero_unidad} ",
+        f"Capítulo {numero_unidad}:",
+        f"Capítulo {numero_unidad} ",
+    ]
+    
+    # Buscar el inicio de la unidad
+    inicio_unidad = -1
+    for patron in patrones_unidad:
+        pos = contexto.lower().find(patron.lower())
+        if pos != -1:
+            inicio_unidad = pos
+            break
+    
+    if inicio_unidad == -1:
+        # Si no encuentra patrones específicos, buscar por número
+        import re
+        patron_numero = rf'\b{numero_unidad}\.?\s*[:\-]?\s*'
+        match = re.search(patron_numero, contexto, re.IGNORECASE)
+        if match:
+            inicio_unidad = match.start()
+    
+    if inicio_unidad == -1:
+        # Si no encuentra la unidad específica, devolver todo el contexto
+        return contexto
+    
+    # Buscar el final de la unidad (siguiente unidad o final del texto)
+    siguiente_unidad = numero_unidad + 1
+    fin_unidad = len(contexto)
+    
+    # Buscar la siguiente unidad
+    for siguiente_num in range(siguiente_unidad, siguiente_unidad + 3):  # Buscar hasta 3 unidades adelante
+        patrones_siguiente = [
+            f"Unidad {siguiente_num}:",
+            f"Unidad {siguiente_num} ",
+            f"Tema {siguiente_num}:",
+            f"Tema {siguiente_num} ",
+            f"Capítulo {siguiente_num}:",
+            f"Capítulo {siguiente_num} ",
+        ]
+        
+        for patron in patrones_siguiente:
+            pos = contexto.lower().find(patron.lower(), inicio_unidad + 1)
+            if pos != -1:
+                fin_unidad = pos
+                break
+        
+        if fin_unidad < len(contexto):
+            break
+    
+    # Extraer el contexto de la unidad
+    contexto_unidad = contexto[inicio_unidad:fin_unidad].strip()
+    
+    # Si el contexto extraído es muy corto, devolver el contexto completo
+    if len(contexto_unidad) < 50:
+        return contexto
+    
+    return contexto_unidad
+
+
 def generar_prompt_texto(partida, asignatura, carrera, programas, unidades_data, unidad_actual=None):
     """Generar texto del prompt para IA con formato específico"""
 
     # Obtener programa analítico (usar el primero si hay varios)
     programa = programas[0] if programas else {}
 
-    # Construir lista de unidades con número de preguntas
+    # Construir lista de unidades con número de preguntas y rangos de numeración
     unidades_lista = []
+    pregunta_inicio = 1
+    
     for unidad in unidades_data:
+        num_preguntas = len(unidad['preguntas'])
+        pregunta_fin = pregunta_inicio + num_preguntas - 1
+        
         unidades_lista.append({
             "numero": unidad['numero'],
             "descripcion": unidad['descripcion'],
-            "num_preguntas": len(unidad['preguntas'])
+            "num_preguntas": num_preguntas,
+            "rango_preguntas": f"{pregunta_inicio}-{pregunta_fin}"
         })
+        
+        pregunta_inicio = pregunta_fin + 1
 
-    # Si hay unidad actual específica, agregar información adicional
-    unidad_info_extra = ""
+    # Filtrar contexto por unidad si se especifica una unidad actual
+    contexto_filtrado = programa.get('contexto', 'No especificado')
     if unidad_actual:
-        unidad_info_extra = f"""
-            INFORMACIÓN DE UNIDAD ESPECÍFICA:
-            - Unidad actual: {unidad_actual['numero']} — {unidad_actual['descripcion']}
-            - Enfócate en esta unidad específica para generar las preguntas.
-            - Extrae los temas/subtemas del Contexto del plan que correspondan a esta unidad.
-            """
+        contexto_filtrado = extraer_contexto_por_unidad(
+            programa.get('contexto', ''), 
+            unidad_actual['numero']
+        )
+        
+        # Si no se pudo extraer contexto específico, usar el completo pero con advertencia
+        if contexto_filtrado == programa.get('contexto', ''):
+            contexto_filtrado = f"CONTEXTO COMPLETO (no se pudo filtrar por unidad {unidad_actual['numero']}):\n{contexto_filtrado}"
+        else:
+            contexto_filtrado = f"CONTEXTO DE LA UNIDAD {unidad_actual['numero']}:\n{contexto_filtrado}"
+
 
     # Generar el prompt con el formato específico
     prompt = f"""ROL
@@ -687,12 +923,17 @@ ENTRADAS
 - Programa: {asignatura['descripcion']}
 - Asignatura: {asignatura['descripcion']}
 - Plan analítico (título): {programa.get('titulo', 'No especificado')}
-- Contexto del plan: {programa.get('contexto', 'No especificado')}  ← aquí se listan los temas y subtemas por unidad; úsalos como base obligatoria
-- Unidades (lista con número, descripción y # de preguntas):
-{unidades_lista}{unidad_info_extra}
+- Contexto del plan: {contexto_filtrado}  ← aquí se listan los temas y subtemas por unidad; úsalos como base obligatoria
 
 OBJETIVO
 Para cada unidad, genera EXACTAMENTE el número de preguntas solicitado, tipo **caso breve de estudio (nivel universitario)**, con **una sola respuesta correcta** por pregunta. Cada caso debe alinearse explícitamente con **un tema/subtema** de esa unidad indicado en el **Contexto del plan**.
+
+NUMERACIÓN DE PREGUNTAS:
+- Las preguntas deben numerarse secuencialmente según el rango indicado para cada unidad
+- Unidad 1: Preguntas 1-25 (o según el número de preguntas configurado)
+- Unidad 2: Preguntas 26-50 (continuando desde donde terminó la unidad anterior)
+- Unidad 3: Preguntas 51-75 (y así sucesivamente)
+- Cada unidad debe generar preguntas en su rango específico sin solapamientos
 
 IMPORTANTE - EXTRACCIÓN DE TEMAS/SUBTEMAS:
 - Los temas y subtemas para cada pregunta DEBEN extraerse del "Contexto del plan" mostrado arriba
@@ -727,17 +968,68 @@ INSTRUCCIONES ESPECÍFICAS PARA TEMAS/SUBTEMAS:
 
 
 
-FORMATO DE SALIDA (formato específico, uno por pregunta)
-Pregunta [#]
-[[Narración del caso - 3-4 líneas]]
-[[Pregunta directa - 2 línea]]
-Opciones:
-a) [[...]]
-b) [[...]]
-c) [[...]]
-d) [[...]]
-Respuesta correcta: [[letra]]
-Explicación: [[2-3 líneas]]
+FORMATO DE SALIDA (JSON específico)
+Genera las preguntas en formato JSON con la siguiente estructura exacta:
+
+{{
+  "numero": [número de pregunta],
+  "enunciado": "[Narración del caso + pregunta directa en un solo texto]",
+  "explicacion": "[Explicación de 2-3 líneas sobre por qué es correcta la respuesta]",
+  "opciones": [
+    {{
+      "texto": "[Texto de la opción A]",
+      "correcta": true/false
+    }},
+    {{
+      "texto": "[Texto de la opción B]", 
+      "correcta": true/false
+    }},
+    {{
+      "texto": "[Texto de la opción C]",
+      "correcta": true/false
+    }},
+    {{
+      "texto": "[Texto de la opción D]",
+      "correcta": true/false
+    }}
+  ]
+}}
+
+EJEMPLO DE FORMATO CORRECTO:
+{{
+  "numero": 1,
+  "enunciado": "En el diario 'Horizonte', las notas llegan tarde a edición porque los redactores escriben párrafos introductorios largos y dejan el dato clave para el tercer bloque. El editor quiere mejorar la comprensión en móviles y bajar la tasa de rebote en la web. Propone un taller express antes del cierre.\\n¿Qué decisión de redacción aplica mejor al caso para garantizar claridad inmediata?",
+  "explicacion": "La pirámide invertida y un lead informativo priorizan lo esencial, mejoran escaneabilidad y tiempo de lectura. Citas largas, suspenso y primera persona no responden a la necesidad de claridad y rapidez.",
+  "opciones": [
+    {{
+      "texto": "Usar lead informativo con 5W1H e invertir el orden (pirámide invertida)",
+      "correcta": true
+    }},
+    {{
+      "texto": "Iniciar con una cita literaria para enganchar emociones",
+      "correcta": false
+    }},
+    {{
+      "texto": "Dejar los datos clave para el cierre y 'suspenso'",
+      "correcta": false
+    }},
+    {{
+      "texto": "Escribir en primera persona para 'humanizar'",
+      "correcta": false
+    }}
+  ]
+}}
+
+INSTRUCCIONES ESPECÍFICAS PARA EL FORMATO JSON:
+1. Cada pregunta debe ser un objeto JSON válido
+2. El campo "numero" debe corresponder al rango de la unidad
+3. El campo "enunciado" debe incluir tanto la narración del caso como la pregunta directa
+4. El campo "explicacion" debe ser una explicación clara de 2-3 líneas
+5. El campo "opciones" debe ser un array con exactamente 4 opciones
+6. Solo UNA opción debe tener "correcta": true, las otras tres deben tener "correcta": false
+7. Genera todas las preguntas en un array JSON válido
+8. Usa comillas dobles para strings, no comillas simples
+9. Asegúrate de que el JSON sea válido y parseable
 
 
 """

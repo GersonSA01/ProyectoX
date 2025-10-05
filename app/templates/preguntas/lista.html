@@ -688,7 +688,28 @@ function descargarGoogleDocs() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'preguntas_google_docs.docx';
+        // Construir nombre de archivo: BANCO DE PREGUNTAS <PREFIJO>
+        // Donde PREFIJO es el prefijo numérico del plan (ej: "026" de "026 Tecnologia")
+        let planTexto = '';
+        try {
+            const programaSelectEl = document.getElementById('programa_analitico');
+            if (programaSelectEl && programaSelectEl.selectedIndex > 0) {
+                planTexto = (programaSelectEl.options[programaSelectEl.selectedIndex].text || '').trim();
+            }
+        } catch(_) { /* noop */ }
+        // Extraer prefijo numérico inicial
+        let prefix = '';
+        const m = planTexto.match(/^\s*(\d{1,})/);
+        if (m && m[1]) {
+            prefix = m[1];
+        }
+        const safePrefix = (prefix || 'SIN')
+            .toString()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^A-Za-z0-9_-]/g, '_')
+            .slice(0, 20);
+        a.download = `BANCO DE PREGUNTAS ${safePrefix}.docx`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
